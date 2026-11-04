@@ -33,6 +33,7 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
   bool _isAudioMuted = false;
   bool _isVideoMuted = false;
   bool _isSpeakerOn = true;
+  bool _showControls = true;
 
   // Draggable PIP coordinates
   Offset _pipPosition = const Offset(20, 80);
@@ -139,188 +140,210 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // 1. Remote Video (Full Screen)
-          Positioned.fill(
-            child: _status == CallStatus.connected && _webRTCService.remoteRenderer.srcObject != null
-                ? RTCVideoView(
-                    _webRTCService.remoteRenderer,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                  )
-                : Container(
-                    color: AppColors.background,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+      body: GestureDetector(
+        onTap: () => setState(() => _showControls = !_showControls),
+        child: Stack(
+          children: [
+            // 1. Remote Video (Full Screen Edge-to-Edge)
+            Positioned.fill(
+              child: _status == CallStatus.connected && _webRTCService.remoteRenderer.srcObject != null
+                  ? RTCVideoView(
+                      _webRTCService.remoteRenderer,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    )
+                  : Container(
+                      color: const Color(0xFF121212),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF262626),
+                              ),
+                              child: const Icon(Icons.videocam_rounded, size: 56, color: Colors.white),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              _status == CallStatus.calling
+                                  ? 'Calling $displayName...'
+                                  : (_status == CallStatus.ringing ? 'Ringing...' : 'Connecting video...'),
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+
+            // 2. Draggable PIP Camera Preview (Instagram Style)
+            Positioned(
+              left: _pipPosition.dx,
+              top: _pipPosition.dy,
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  setState(() {
+                    _pipPosition = Offset(
+                      (_pipPosition.dx + details.delta.dx).clamp(10.0, size.width - 125),
+                      (_pipPosition.dy + details.delta.dy).clamp(40.0, size.height - 195),
+                    );
+                  });
+                },
+                child: Container(
+                  width: 110,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white24, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black87, blurRadius: 12),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: !_isVideoMuted && _webRTCService.localRenderer.srcObject != null
+                        ? RTCVideoView(
+                            _webRTCService.localRenderer,
+                            mirror: _webRTCService.isFrontCamera,
+                            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                          )
+                        : Container(
+                            color: const Color(0xFF262626),
+                            child: const Center(
+                              child: Icon(Icons.videocam_off, color: Colors.white54, size: 28),
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 3. Instagram Video Call Top Bar
+            if (_showControls)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 12,
+                right: 12,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 30),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
                         children: [
-                          const Icon(Icons.videocam_rounded, size: 64, color: AppColors.primaryLight),
-                          const SizedBox(height: 16),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _status == CallStatus.connected ? const Color(0xFF00E676) : AppColors.callAmber,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Text(
-                            _status == CallStatus.calling
-                                ? 'Calling $displayName...'
-                                : (_status == CallStatus.ringing ? 'Ringing...' : 'Connecting video...'),
-                            style: const TextStyle(color: Colors.white, fontSize: 18),
+                            _status == CallStatus.connected
+                                ? DateFormatter.formatCallDuration(_durationSeconds)
+                                : (_status == CallStatus.calling ? 'Calling...' : 'Ringing...'),
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
-                  ),
-          ),
-
-          // 2. Draggable Local Camera Preview (PIP)
-          Positioned(
-            left: _pipPosition.dx,
-            top: _pipPosition.dy,
-            child: GestureDetector(
-              onPanUpdate: (details) {
-                setState(() {
-                  _pipPosition = Offset(
-                    (_pipPosition.dx + details.delta.dx).clamp(10.0, size.width - 130),
-                    (_pipPosition.dy + details.delta.dy).clamp(40.0, size.height - 200),
-                  );
-                });
-              },
-              child: Container(
-                width: 110,
-                height: 155,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.cardBorder, width: 2),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black54, blurRadius: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        displayName,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: !_isVideoMuted && _webRTCService.localRenderer.srcObject != null
-                      ? RTCVideoView(
-                          _webRTCService.localRenderer,
-                          mirror: _webRTCService.isFrontCamera,
-                          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                        )
-                      : Container(
-                          color: AppColors.surface,
-                          child: const Center(
-                            child: Icon(Icons.videocam_off, color: Colors.white54, size: 28),
-                          ),
-                        ),
-                ),
               ),
-            ),
-          ),
 
-          // 3. Top Call Info Bar
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            // 4. Instagram Video Call Bottom Control Dock
+            if (_showControls)
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 24,
+                left: 20,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(16),
+                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(36),
+                    border: Border.all(color: Colors.white12),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black54, blurRadius: 16),
+                    ],
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _status == CallStatus.connected ? AppColors.online : AppColors.callAmber,
-                          shape: BoxShape.circle,
-                        ),
+                      // Flip Camera
+                      _buildControlButton(
+                        icon: Icons.flip_camera_ios_rounded,
+                        isActive: false,
+                        onTap: _switchCamera,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _status == CallStatus.connected
-                            ? DateFormatter.formatCallDuration(_durationSeconds)
-                            : (_status == CallStatus.calling ? 'Calling...' : 'Ringing...'),
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+
+                      // Video On/Off
+                      _buildControlButton(
+                        icon: _isVideoMuted ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                        isActive: _isVideoMuted,
+                        onTap: _toggleVideo,
+                      ),
+
+                      // Mic Mute
+                      _buildControlButton(
+                        icon: _isAudioMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                        isActive: _isAudioMuted,
+                        onTap: _toggleMute,
+                      ),
+
+                      // Speaker
+                      _buildControlButton(
+                        icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                        isActive: _isSpeakerOn,
+                        onTap: _toggleSpeaker,
+                      ),
+
+                      // End Call (Red Button)
+                      GestureDetector(
+                        onTap: () => _hangUp(endStatus: CallStatus.ended),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.callRed,
+                            boxShadow: [
+                              BoxShadow(color: Colors.black45, blurRadius: 8),
+                            ],
+                          ),
+                          child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 24),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    displayName,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 4. Video Call Bottom Action Controls (🎤 📹 🔊 🔄 🔴)
-          Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 20,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white12),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Microphone mute/unmute
-                  _buildControlButton(
-                    icon: _isAudioMuted ? Icons.mic_off : Icons.mic,
-                    isActive: _isAudioMuted,
-                    onTap: _toggleMute,
-                  ),
-
-                  // Camera on/off
-                  _buildControlButton(
-                    icon: _isVideoMuted ? Icons.videocam_off : Icons.videocam,
-                    isActive: _isVideoMuted,
-                    onTap: _toggleVideo,
-                  ),
-
-                  // Speakerphone
-                  _buildControlButton(
-                    icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
-                    isActive: _isSpeakerOn,
-                    onTap: _toggleSpeaker,
-                  ),
-
-                  // Switch Camera (Front / Back)
-                  _buildControlButton(
-                    icon: Icons.flip_camera_ios,
-                    isActive: false,
-                    onTap: _switchCamera,
-                  ),
-
-                  // End Call (Red Button)
-                  GestureDetector(
-                    onTap: () => _hangUp(endStatus: CallStatus.ended),
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.endCallGradient,
-                      ),
-                      child: const Icon(Icons.call_end, color: Colors.white, size: 26),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -337,12 +360,12 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
         height: 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isActive ? Colors.white : Colors.white12,
+          color: isActive ? Colors.white : const Color(0xFF2C2C2E),
         ),
         child: Icon(
           icon,
           color: isActive ? Colors.black : Colors.white,
-          size: 22,
+          size: 20,
         ),
       ),
     );

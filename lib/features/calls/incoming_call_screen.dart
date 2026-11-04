@@ -26,7 +26,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
 
     // Listen to call doc: if caller cancels, dismiss
@@ -77,73 +77,112 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
     final isVideo = widget.call.type == CallType.video;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const SizedBox(height: 40),
+            // Top Bar with Encryption Pill
+            Padding(
+              padding: const EdgeInsets.only(top: 24.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.igMutedGrey),
+                    SizedBox(width: 6),
+                    Text(
+                      'End-to-end encrypted',
+                      style: TextStyle(color: AppColors.igMutedGrey, fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-            // Caller Info & Pulsing Avatar
+            // Instagram Caller Info & Pulsing Concentric Rings
             Column(
               children: [
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {
-                    return Container(
-                      padding: EdgeInsets.all(16 * _pulseController.value),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: (isVideo ? AppColors.primary : AppColors.callGreen)
-                            .withValues(alpha: 0.15 + (0.2 * _pulseController.value)),
-                      ),
-                      child: AvatarWidget(
-                        name: widget.call.callerName,
-                        photoUrl: widget.call.callerPhoto,
-                        radius: 56,
-                      ),
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Outer Pulsing Ring
+                        Container(
+                          width: 170 + (40 * _pulseController.value),
+                          height: 170 + (40 * _pulseController.value),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: (isVideo ? AppColors.igBlue : AppColors.callGreen)
+                                  .withValues(alpha: 0.25 * (1.0 - _pulseController.value)),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        // Middle Pulsing Ring
+                        Container(
+                          width: 140 + (25 * _pulseController.value),
+                          height: 140 + (25 * _pulseController.value),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: (isVideo ? AppColors.igBlue : AppColors.callGreen)
+                                .withValues(alpha: 0.12 * _pulseController.value),
+                          ),
+                        ),
+                        // Center Avatar with Instagram Story Gradient Ring
+                        Container(
+                          padding: const EdgeInsets.all(3.5),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.instagramStoryGradient,
+                          ),
+                          child: AvatarWidget(
+                            name: widget.call.callerName,
+                            photoUrl: widget.call.callerPhoto,
+                            radius: 54,
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
                 Text(
                   widget.call.callerName,
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isVideo ? Icons.videocam : Icons.call,
-                      size: 18,
-                      color: isVideo ? AppColors.primaryLight : AppColors.secondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isVideo ? 'Incoming Video Call...' : 'Incoming Voice Call...',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
+                Text(
+                  isVideo ? 'Cosmic Video Call...' : 'Cosmic Audio Call...',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.igMutedGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
 
-            // Accept & Decline Buttons
+            // Instagram Call Action Buttons (Decline / Accept)
             Padding(
-              padding: const EdgeInsets.only(bottom: 60.0, left: 40, right: 40),
+              padding: const EdgeInsets.only(bottom: 60.0, left: 48, right: 48),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Decline
+                  // Decline Button
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -154,20 +193,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
                           height: 68,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: AppColors.endCallGradient,
+                            color: AppColors.callRed,
                             boxShadow: [
-                              BoxShadow(color: AppColors.callRed, blurRadius: 16, spreadRadius: 1),
+                              BoxShadow(color: Colors.black45, blurRadius: 16),
                             ],
                           ),
-                          child: const Icon(Icons.call_end, color: Colors.white, size: 32),
+                          child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 32),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Text('Decline', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Decline',
+                        style: TextStyle(color: AppColors.igMutedGrey, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
                     ],
                   ),
 
-                  // Accept
+                  // Accept Button
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -178,20 +220,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
                           height: 68,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: AppColors.callGradient,
+                            color: Color(0xFF00E676),
                             boxShadow: [
-                              BoxShadow(color: AppColors.callGreen, blurRadius: 16, spreadRadius: 1),
+                              BoxShadow(color: Colors.black45, blurRadius: 16),
                             ],
                           ),
                           child: Icon(
-                            isVideo ? Icons.videocam_rounded : Icons.call,
+                            isVideo ? Icons.videocam_rounded : Icons.call_rounded,
                             color: Colors.white,
                             size: 32,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Text('Accept', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Accept',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     ],
                   ),
                 ],

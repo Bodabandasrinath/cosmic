@@ -6,6 +6,7 @@ import '../../models/call_model.dart';
 import '../../repositories/call_repository.dart';
 import '../../services/webrtc_service.dart';
 import '../../widgets/avatar_widget.dart';
+import 'active_video_call_screen.dart';
 
 class ActiveVoiceCallScreen extends StatefulWidget {
   final CallModel call;
@@ -21,7 +22,7 @@ class ActiveVoiceCallScreen extends StatefulWidget {
   State<ActiveVoiceCallScreen> createState() => _ActiveVoiceCallScreenState();
 }
 
-class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
+class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with SingleTickerProviderStateMixin {
   final WebRTCService _webRTCService = WebRTCService();
   final CallRepository _callRepository = CallRepository();
 
@@ -33,9 +34,16 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
   bool _isAudioMuted = false;
   bool _isSpeakerOn = false;
 
+  late AnimationController _haloController;
+
   @override
   void initState() {
     super.initState();
+    _haloController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
     _startWebRTC();
   }
 
@@ -112,8 +120,24 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
     setState(() => _isSpeakerOn = _webRTCService.isSpeakerOn);
   }
 
+  void _switchToVideo() {
+    _webRTCService.dispose();
+    _callTimer?.cancel();
+    _timeoutTimer?.cancel();
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => ActiveVideoCallScreen(
+          call: widget.call.copyWith(type: CallType.video),
+          isCaller: widget.isCaller,
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _haloController.dispose();
     _callTimer?.cancel();
     _timeoutTimer?.cancel();
     _webRTCService.dispose();
@@ -141,42 +165,70 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
     final photoUrl = widget.isCaller ? widget.call.receiverPhoto : widget.call.callerPhoto;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Bar
+            // Top Bar: Minimize chevron & Encrypted Pill
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 30),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.cardBorder),
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock_outline, size: 14, color: AppColors.online),
-                        SizedBox(width: 4),
-                        Text('End-to-End Encrypted', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.igMutedGrey),
+                        SizedBox(width: 6),
+                        Text(
+                          'End-to-end encrypted',
+                          style: TextStyle(color: AppColors.igMutedGrey, fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 48), // Balance for back button
                 ],
               ),
             ),
 
-            // Profile info & Avatar
+            // Instagram Center Avatar with Breathing Glow
             Column(
               children: [
-                AvatarWidget(
-                  name: displayName,
-                  photoUrl: photoUrl,
-                  radius: 64,
+                AnimatedBuilder(
+                  animation: _haloController,
+                  builder: (context, child) {
+                    return Container(
+                      padding: EdgeInsets.all(8 * _haloController.value),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.06 * _haloController.value),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppColors.instagramStoryGradient,
+                        ),
+                        child: AvatarWidget(
+                          name: displayName,
+                          photoUrl: photoUrl,
+                          radius: 68,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -184,60 +236,74 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
                   style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _getStatusText(),
                   style: TextStyle(
-                    fontSize: 16,
-                    color: _status == CallStatus.connected ? AppColors.online : AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    color: _status == CallStatus.connected ? const Color(0xFF00E676) : AppColors.igMutedGrey,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
 
-            // Control Buttons
+            // Instagram Call Control Dock
             Padding(
-              padding: const EdgeInsets.only(bottom: 48.0, left: 32, right: 32),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Mute
-                  _buildCallAction(
-                    icon: _isAudioMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                    label: _isAudioMuted ? 'Unmute' : 'Mute',
-                    isActive: _isAudioMuted,
-                    onTap: _toggleMute,
-                  ),
-
-                  // End Call (Big Red Button)
-                  GestureDetector(
-                    onTap: () => _hangUp(endStatus: CallStatus.ended),
-                    child: Container(
-                      width: 68,
-                      height: 68,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.endCallGradient,
-                        boxShadow: [
-                          BoxShadow(color: AppColors.callRed, blurRadius: 16, spreadRadius: 1),
-                        ],
-                      ),
-                      child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 32),
+              padding: const EdgeInsets.only(bottom: 48.0, left: 24, right: 24),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(36),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    // Mute
+                    _buildDockButton(
+                      icon: _isAudioMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      isActive: _isAudioMuted,
+                      onTap: _toggleMute,
                     ),
-                  ),
 
-                  // Speaker
-                  _buildCallAction(
-                    icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
-                    label: 'Speaker',
-                    isActive: _isSpeakerOn,
-                    onTap: _toggleSpeaker,
-                  ),
-                ],
+                    // Speaker
+                    _buildDockButton(
+                      icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                      isActive: _isSpeakerOn,
+                      onTap: _toggleSpeaker,
+                    ),
+
+                    // Switch to Video
+                    _buildDockButton(
+                      icon: Icons.videocam_outlined,
+                      isActive: false,
+                      onTap: _switchToVideo,
+                    ),
+
+                    // End Call (Red Button)
+                    GestureDetector(
+                      onTap: () => _hangUp(endStatus: CallStatus.ended),
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.callRed,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black45, blurRadius: 10),
+                          ],
+                        ),
+                        child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 26),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -246,38 +312,26 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> {
     );
   }
 
-  Widget _buildCallAction({
+  Widget _buildDockButton({
     required IconData icon,
-    required String label,
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isActive ? Colors.white : AppColors.surface,
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Icon(
-              icon,
-              color: isActive ? Colors.black : Colors.white,
-              size: 24,
-            ),
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isActive ? Colors.white : const Color(0xFF2C2C2E),
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        child: Icon(
+          icon,
+          color: isActive ? Colors.black : Colors.white,
+          size: 22,
         ),
-      ],
+      ),
     );
   }
 }

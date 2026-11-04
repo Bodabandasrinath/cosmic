@@ -59,4 +59,44 @@ class AppColors {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
+
+  // Instagram-Inspired Aesthetic Gradients & Accents
+  static const Color igDarkBackground = Color(0xFF000000);
+  static const Color igDarkSurface = Color(0xFF121212);
+  static const Color igDarkCard = Color(0xFF1C1C1E);
+  static const Color igDarkBubbleReceived = Color(0xFF262626);
+  static const Color igDarkBorder = Color(0xFF2F2F2F);
+  static const Color igBlue = Color(0xFF3897F0);
+  static const Color igHeartRed = Color(0xFFFF3040);
+  static const Color igMutedGrey = Color(0xFF8E8E8E);
+
+  static const LinearGradient instagramGradient = LinearGradient(
+    colors: [
+      Color(0xFF833AB4),
+      Color(0xFFFD1D1D),
+      Color(0xFFFCB045),
+    ],
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+  );
+
+  static const LinearGradient instagramSentGradient = LinearGradient(
+    colors: [
+      Color(0xFF7000FF),
+      Color(0xFFB5179E),
+      Color(0xFF4361EE),
+    ],
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+  );
+
+  static const LinearGradient instagramStoryGradient = LinearGradient(
+    colors: [
+      Color(0xFFFBAA47),
+      Color(0xFFD91A46),
+      Color(0xFFA60F93),
+    ],
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+  );
 }

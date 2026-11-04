@@ -110,29 +110,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: AppColors.bottomBar,
+          color: Colors.black,
           border: Border(
-            top: BorderSide(color: AppColors.cardBorder, width: 0.8),
+            top: BorderSide(color: Color(0xFF1E1E1E), width: 0.8),
           ),
         ),
         child: NavigationBarTheme(
           data: NavigationBarThemeData(
-            indicatorColor: AppColors.primary.withValues(alpha: 0.2),
+            indicatorColor: Colors.transparent,
             labelTextStyle: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.selected)) {
                 return const TextStyle(
-                  color: AppColors.primaryLight,
-                  fontSize: 12,
+                  color: Colors.white,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 );
               }
-              return const TextStyle(color: AppColors.textMuted, fontSize: 12);
+              return const TextStyle(color: AppColors.igMutedGrey, fontSize: 11);
             }),
             iconTheme: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.selected)) {
-                return const IconThemeData(color: AppColors.primaryLight, size: 24);
+                return const IconThemeData(color: Colors.white, size: 26);
               }
-              return const IconThemeData(color: AppColors.textMuted, size: 22);
+              return const IconThemeData(color: AppColors.igMutedGrey, size: 24);
             }),
           ),
           child: NavigationBar(
@@ -142,18 +142,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             elevation: 0,
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                selectedIcon: Icon(Icons.chat_bubble_rounded),
-                label: 'Chats',
+                icon: Icon(Icons.send_outlined),
+                selectedIcon: Icon(Icons.send_rounded),
+                label: 'Direct',
               ),
               NavigationDestination(
-                icon: Icon(Icons.call_outlined),
-                selectedIcon: Icon(Icons.call_rounded),
+                icon: Icon(Icons.videocam_outlined),
+                selectedIcon: Icon(Icons.videocam_rounded),
                 label: 'Calls',
               ),
               NavigationDestination(
-                icon: Icon(Icons.people_alt_outlined),
-                selectedIcon: Icon(Icons.people_alt_rounded),
+                icon: Icon(Icons.people_outline_rounded),
+                selectedIcon: Icon(Icons.people_rounded),
                 label: 'Contacts',
               ),
               NavigationDestination(

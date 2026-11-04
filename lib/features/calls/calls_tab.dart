@@ -66,19 +66,24 @@ class _CallsTabState extends State<CallsTab> {
   Widget build(BuildContext context) {
     final currentUserId = Provider.of<AuthRepository>(context).currentUid;
     if (currentUserId == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primaryLight));
+      return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Calls', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        title: const Text(
+          'Calls',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, color: Colors.white, letterSpacing: -0.5),
+        ),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _callRepository.streamCallLogs(currentUserId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primaryLight));
+            return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
           }
 
           final logs = snapshot.data ?? [];
@@ -90,36 +95,30 @@ class _CallsTabState extends State<CallsTab> {
                   Container(
                     width: 76,
                     height: 76,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1E1E1E),
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.cardBorder),
                     ),
-                    child: const Icon(Icons.phone_missed_rounded, size: 36, color: AppColors.primaryLight),
+                    child: const Icon(Icons.phone_missed_rounded, size: 36, color: Colors.white70),
                   ),
                   const SizedBox(height: 16),
                   const Text(
                     'No call history yet',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Start voice or video calls with your contacts',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    'Voice and video calls with friends will show here.',
+                    style: TextStyle(fontSize: 13, color: AppColors.igMutedGrey),
                   ),
                 ],
               ),
             );
           }
 
-          return ListView.separated(
+          return ListView.builder(
             itemCount: logs.length,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            separatorBuilder: (_, __) => const Divider(
-              color: AppColors.cardBorder,
-              height: 1,
-              indent: 76,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemBuilder: (context, index) {
               final log = logs[index];
               final isIncoming = log['isIncoming'] == true;
@@ -139,18 +138,18 @@ class _CallsTabState extends State<CallsTab> {
               final isMissed = callStatus == CallStatus.missed || (isIncoming && callStatus == CallStatus.rejected);
 
               return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
                 leading: AvatarWidget(
                   name: targetName,
                   photoUrl: targetPhoto,
-                  radius: 24,
+                  radius: 26,
                 ),
                 title: Text(
                   targetName,
                   style: TextStyle(
-                    color: isMissed ? AppColors.callRed : AppColors.textPrimary,
+                    color: isMissed ? AppColors.callRed : Colors.white,
                     fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                 ),
                 subtitle: Row(
@@ -159,20 +158,21 @@ class _CallsTabState extends State<CallsTab> {
                       isIncoming
                           ? (isMissed ? Icons.call_missed_rounded : Icons.call_received_rounded)
                           : Icons.call_made_rounded,
-                      size: 15,
-                      color: isMissed ? AppColors.callRed : (isIncoming ? AppColors.online : AppColors.secondary),
+                      size: 14,
+                      color: isMissed ? AppColors.callRed : (isIncoming ? const Color(0xFF00E676) : AppColors.igMutedGrey),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
-                      '${isIncoming ? (isMissed ? 'Missed' : 'Incoming') : 'Outgoing'} • ${DateFormatter.formatChatListTime(timestamp)}',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      '${isIncoming ? (isMissed ? 'Missed' : 'Incoming') : 'Outgoing'} · ${DateFormatter.formatChatListTime(timestamp)}',
+                      style: const TextStyle(color: AppColors.igMutedGrey, fontSize: 13),
                     ),
                   ],
                 ),
                 trailing: IconButton(
                   icon: Icon(
-                    callType == CallType.video ? Icons.videocam_rounded : Icons.call_rounded,
-                    color: AppColors.primaryLight,
+                    callType == CallType.video ? Icons.videocam_outlined : Icons.call_outlined,
+                    color: Colors.white,
+                    size: 24,
                   ),
                   onPressed: () async {
                     final targetUser = await _userRepository.getUserById(targetUserId);

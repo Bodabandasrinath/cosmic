@@ -101,59 +101,75 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     final currentUserId = Provider.of<AuthRepository>(context).currentUid!;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         titleSpacing: 0,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          onChanged: _performSearch,
-          decoration: InputDecoration(
-            hintText: 'Search people by name, @username, or email...',
-            prefixIcon: const Icon(Icons.search, color: AppColors.primaryLight, size: 20),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: AppColors.textMuted, size: 18),
-                    onPressed: () {
-                      _searchController.clear();
-                      _performSearch('');
-                    },
-                  )
-                : null,
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
+        title: Container(
+          height: 38,
+          margin: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF262626),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            onChanged: _performSearch,
+            decoration: InputDecoration(
+              hintText: 'Search',
+              hintStyle: const TextStyle(color: Color(0xFF8E8E8E), fontSize: 14),
+              prefixIcon: const Icon(Icons.search, color: Color(0xFF8E8E8E), size: 18),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.cancel, color: Color(0xFF8E8E8E), size: 16),
+                      onPressed: () {
+                        _searchController.clear();
+                        _performSearch('');
+                      },
+                    )
+                  : null,
+              filled: false,
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
           ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.igBlue))
           : (!_hasSearched
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 72,
-                        height: 72,
+                        width: 76,
+                        height: 76,
                         decoration: BoxDecoration(
-                          color: AppColors.surface,
+                          color: const Color(0xFF121212),
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.cardBorder),
+                          border: Border.all(color: const Color(0xFF262626)),
                         ),
-                        child: const Icon(Icons.travel_explore_rounded, size: 36, color: AppColors.secondary),
+                        child: const Icon(Icons.search_rounded, size: 38, color: Color(0xFF8E8E8E)),
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'Find people on Cosmic',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        'Search Cosmic',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Type a username to start a conversation or call',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                        'Find people by name or @username to chat & call',
+                        style: TextStyle(color: Color(0xFF8E8E8E), fontSize: 13),
                       ),
                     ],
                   ),
@@ -161,48 +177,92 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               : (_results.isEmpty
                   ? const Center(
                       child: Text(
-                        'No users found matching your search.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                        'No results found',
+                        style: TextStyle(color: Color(0xFF8E8E8E), fontSize: 15, fontWeight: FontWeight.w500),
                       ),
                     )
-                  : ListView.separated(
+                  : ListView.builder(
                       itemCount: _results.length,
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      separatorBuilder: (_, __) => const Divider(
-                        color: AppColors.cardBorder,
-                        height: 1,
-                        indent: 76,
-                      ),
                       itemBuilder: (context, index) {
                         final user = _results[index];
 
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          leading: AvatarWidget(
-                            name: user.displayName,
-                            photoUrl: user.profilePhoto,
-                            radius: 24,
-                            isOnline: user.isOnline,
-                            showOnlineIndicator: true,
-                          ),
-                          title: Text(
-                            user.displayName,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '@${user.username}',
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
                             children: [
-                              // Add to contacts button
+                              AvatarWidget(
+                                name: user.displayName,
+                                photoUrl: user.profilePhoto,
+                                radius: 24,
+                                isOnline: user.isOnline,
+                                showOnlineIndicator: true,
+                                showStoryRing: true,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.username.isNotEmpty ? user.username : user.displayName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      user.displayName,
+                                      style: const TextStyle(color: Color(0xFF8E8E8E), fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Message button (Instagram Blue)
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => ChatScreen(otherUser: user)),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.igBlue,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    'Message',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Audio call
                               IconButton(
-                                icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primaryLight, size: 22),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(6),
+                                icon: const Icon(Icons.call_outlined, color: Colors.white70, size: 20),
+                                onPressed: () => _startCall(user, CallType.voice),
+                              ),
+                              // Video call
+                              IconButton(
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(6),
+                                icon: const Icon(Icons.videocam_outlined, color: Colors.white70, size: 22),
+                                onPressed: () => _startCall(user, CallType.video),
+                              ),
+                              // Add to contacts
+                              IconButton(
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(6),
+                                icon: const Icon(Icons.person_add_outlined, color: Color(0xFF8E8E8E), size: 19),
                                 onPressed: () async {
                                   await _userRepository.addContact(
                                     currentUserId: currentUserId,
@@ -214,20 +274,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                                     );
                                   }
                                 },
-                              ),
-                              // Message button
-                              IconButton(
-                                icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 22),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => ChatScreen(otherUser: user)),
-                                  );
-                                },
-                              ),
-                              // Direct Voice Call 📞
-                              IconButton(
-                                icon: const Icon(Icons.call_rounded, color: AppColors.callGreen, size: 22),
-                                onPressed: () => _startCall(user, CallType.voice),
                               ),
                             ],
                           ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../models/chat_model.dart';
+import '../../models/contact_model.dart';
 import '../../models/user_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/chat_repository.dart';
@@ -28,6 +29,123 @@ class _ChatsTabState extends State<ChatsTab> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Widget _buildInstagramStoriesTray(String currentUserId, UserModel? currentUser) {
+    return SizedBox(
+      height: 104,
+      child: StreamBuilder<List<ContactModel>>(
+        stream: _userRepository.streamContacts(currentUserId),
+        builder: (context, snapshot) {
+          final contacts = snapshot.data ?? [];
+
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: 1 + contacts.length,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                // "Your note" / "Your Story"
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF262626),
+                            ),
+                            child: AvatarWidget(
+                              name: currentUser?.displayName ?? 'You',
+                              photoUrl: currentUser?.profilePhoto,
+                              radius: 30,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.igBlue,
+                              ),
+                              child: const Icon(Icons.add, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Your note',
+                        style: TextStyle(color: AppColors.igMutedGrey, fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final contact = contacts[index - 1];
+              return GestureDetector(
+                onTap: () async {
+                  final user = await _userRepository.getUserById(contact.contactId);
+                  if (user != null && context.mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(otherUser: user),
+                      ),
+                    );
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppColors.instagramStoryGradient,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black,
+                          ),
+                          child: AvatarWidget(
+                            name: contact.displayName,
+                            photoUrl: contact.profilePhoto,
+                            radius: 28,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 68,
+                        child: Text(
+                          contact.displayName.split(' ').first,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -78,15 +196,16 @@ class _ChatsTabState extends State<ChatsTab> {
         ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Instagram Capsule Search Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
             child: Container(
-              height: 42,
+              height: 40,
               decoration: BoxDecoration(
                 color: const Color(0xFF262626),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: TextField(
                 controller: _searchController,
@@ -105,10 +224,25 @@ class _ChatsTabState extends State<ChatsTab> {
                           },
                         )
                       : null,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   border: InputBorder.none,
                 ),
               ),
+            ),
+          ),
+
+          // Instagram Stories & Notes Horizontal Tray
+          _buildInstagramStoriesTray(currentUserId, currentUser),
+
+          // Messages / Requests Header
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Messages', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Requests', style: TextStyle(color: AppColors.igBlue, fontSize: 14, fontWeight: FontWeight.w600)),
+              ],
             ),
           ),
 
@@ -137,13 +271,13 @@ class _ChatsTabState extends State<ChatsTab> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 76,
+                          height: 76,
                           decoration: const BoxDecoration(
                             color: Color(0xFF1E1E1E),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.send_rounded, size: 36, color: Colors.white),
+                          child: const Icon(Icons.send_rounded, size: 34, color: Colors.white),
                         ),
                         const SizedBox(height: 16),
                         const Text(
@@ -304,15 +438,6 @@ class _ChatsTabState extends State<ChatsTab> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF262626),
-        child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 24),
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const UserSearchScreen()),
-          );
-        },
       ),
     );
   }

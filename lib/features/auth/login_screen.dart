@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final authRepo = Provider.of<AuthRepository>(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -81,48 +81,44 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo
+                  // Instagram Style Cosmic Logo
                   Center(
                     child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
+                      width: 76,
+                      height: 76,
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: AppColors.cosmicGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.4),
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        gradient: AppColors.instagramStoryGradient,
                       ),
-                      child: const Icon(
-                        Icons.all_inclusive_rounded,
-                        size: 40,
+                      child: const Center(
+                        child: Icon(
+                          Icons.all_inclusive_rounded,
+                          size: 44,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Center(
+                    child: Text(
+                      'Cosmic',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
                         color: Colors.white,
+                        letterSpacing: -1.2,
+                        fontFamily: 'serif',
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
                   const Center(
                     child: Text(
-                      'Welcome to Cosmic',
+                      'Connect beyond distance.',
                       style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Center(
-                    child: Text(
-                      'Sign in to connect beyond distance',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        color: AppColors.igMutedGrey,
                       ),
                     ),
                   ),
@@ -131,19 +127,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Email
                   CosmicTextField(
                     controller: _emailController,
-                    labelText: 'Email',
-                    hintText: 'Enter your email address',
-                    prefixIcon: Icons.email_outlined,
+                    labelText: 'Phone number, username, or email',
+                    hintText: 'Phone number, username, or email',
+                    prefixIcon: Icons.person_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
                     validator: Validators.validateEmail,
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
 
                   // Password
                   CosmicTextField(
                     controller: _passwordController,
                     labelText: 'Password',
-                    hintText: 'Enter your password',
+                    hintText: 'Password',
                     prefixIcon: Icons.lock_outline_rounded,
                     isPassword: true,
                     validator: Validators.validatePassword,
@@ -160,59 +156,69 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                       child: const Text(
-                        'Forgot Password?',
-                        style: TextStyle(color: AppColors.primaryLight, fontSize: 13),
+                        'Forgot password?',
+                        style: TextStyle(color: AppColors.igBlue, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // Login Button
+                  // Login Button (Instagram Blue)
                   CosmicButton(
-                    text: 'Sign In',
+                    text: 'Log in',
                     isLoading: authRepo.isLoading,
                     onPressed: _handleLogin,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                  // Divider
+                  // Instagram "OR" Divider
                   const Row(
                     children: [
-                      Expanded(child: Divider(color: AppColors.cardBorder)),
+                      Expanded(child: Divider(color: Color(0xFF262626))),
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('OR', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                        child: Text(
+                          'OR',
+                          style: TextStyle(color: AppColors.igMutedGrey, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
                       ),
-                      Expanded(child: Divider(color: AppColors.cardBorder)),
+                      Expanded(child: Divider(color: Color(0xFF262626))),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
                   // Phone OTP Login Button
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPrimary,
-                      side: const BorderSide(color: AppColors.cardBorder),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF262626)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    icon: const Icon(Icons.phone_android_rounded, size: 20, color: AppColors.secondary),
-                    label: const Text('Sign in with Phone Number'),
+                    icon: const Icon(Icons.phone_android_rounded, size: 20, color: AppColors.igBlue),
+                    label: const Text(
+                      'Log in with Phone Number',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const PhoneLoginScreen()),
                       );
                     },
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 36),
 
-                  // Register Link
+                  // Divider
+                  const Divider(color: Color(0xFF1E1E1E), height: 1),
+                  const SizedBox(height: 16),
+
+                  // Register Link (Instagram style footer)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
                         "Don't have an account? ",
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                        style: TextStyle(color: AppColors.igMutedGrey, fontSize: 13),
                       ),
                       GestureDetector(
                         onTap: () {
@@ -221,11 +227,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                         child: const Text(
-                          'Register',
+                          'Sign up',
                           style: TextStyle(
-                            color: AppColors.primaryLight,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            color: AppColors.igBlue,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),

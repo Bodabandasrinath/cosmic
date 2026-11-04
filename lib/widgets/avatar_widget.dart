@@ -8,6 +8,7 @@ class AvatarWidget extends StatelessWidget {
   final double radius;
   final bool isOnline;
   final bool showOnlineIndicator;
+  final bool showStoryRing;
   final VoidCallback? onTap;
 
   const AvatarWidget({
@@ -17,6 +18,7 @@ class AvatarWidget extends StatelessWidget {
     this.radius = 24,
     this.isOnline = false,
     this.showOnlineIndicator = false,
+    this.showStoryRing = false,
     this.onTap,
   });
 
@@ -49,13 +51,31 @@ class AvatarWidget extends StatelessWidget {
       avatarContent = _buildInitialsFallback(initials);
     }
 
-    final avatar = ClipRRect(
+    Widget rendered = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: avatarContent,
     );
 
+    if (showStoryRing) {
+      rendered = Container(
+        padding: const EdgeInsets.all(2.5),
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppColors.instagramStoryGradient,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(2.0),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black,
+          ),
+          child: rendered,
+        ),
+      );
+    }
+
     if (!showOnlineIndicator) {
-      return GestureDetector(onTap: onTap, child: avatar);
+      return GestureDetector(onTap: onTap, child: rendered);
     }
 
     return GestureDetector(
@@ -63,7 +83,7 @@ class AvatarWidget extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          avatar,
+          rendered,
           Positioned(
             right: 0,
             bottom: 0,
@@ -73,7 +93,7 @@ class AvatarWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isOnline ? AppColors.online : AppColors.offline,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.background, width: 2),
+                border: Border.all(color: Colors.black, width: 2),
               ),
             ),
           ),

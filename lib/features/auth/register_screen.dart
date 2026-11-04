@@ -180,9 +180,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authRepo = Provider.of<AuthRepository>(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Create Cosmic Account'),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('Sign up', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -192,29 +198,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Profile Photo Avatar with Edit Badge
+                // Profile Photo Avatar with Edit Badge & Story Gradient
                 Center(
                   child: Stack(
                     children: [
                       Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: AppColors.cosmicGradient,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 16,
-                            ),
-                          ],
+                          gradient: AppColors.instagramStoryGradient,
                         ),
-                        child: ClipOval(
-                          child: _selectedImageBytes != null
-                              ? Image.memory(_selectedImageBytes!, fit: BoxFit.cover)
-                              : (_selectedImage != null
-                                  ? Image.file(_selectedImage!, fit: BoxFit.cover)
-                                  : const Icon(Icons.person, size: 54, color: Colors.white70)),
+                        child: Container(
+                          width: 88,
+                          height: 88,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF1E1E1E),
+                          ),
+                          child: ClipOval(
+                            child: _selectedImageBytes != null
+                                ? Image.memory(_selectedImageBytes!, fit: BoxFit.cover)
+                                : (_selectedImage != null
+                                    ? Image.file(_selectedImage!, fit: BoxFit.cover)
+                                    : const Icon(Icons.person_rounded, size: 50, color: Colors.white70)),
+                          ),
                         ),
                       ),
                       Positioned(
@@ -223,13 +230,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: GestureDetector(
                           onTap: _showImagePickerSheet,
                           child: Container(
-                            width: 32,
-                            height: 32,
+                            width: 30,
+                            height: 30,
                             decoration: const BoxDecoration(
-                              color: AppColors.secondary,
+                              color: AppColors.igBlue,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.camera_alt, size: 18, color: Colors.black),
+                            child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                           ),
                         ),
                       ),
@@ -240,7 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const Center(
                   child: Text(
                     'Add Profile Photo',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: TextStyle(color: AppColors.igMutedGrey, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -249,60 +256,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 CosmicTextField(
                   controller: _displayNameController,
                   labelText: 'Full Name',
-                  hintText: 'e.g. Rahul Sharma',
+                  hintText: 'Full Name',
                   prefixIcon: Icons.badge_outlined,
                   validator: Validators.validateDisplayName,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Username
                 CosmicTextField(
                   controller: _usernameController,
                   labelText: 'Username',
-                  hintText: 'e.g. rahul_sharma',
+                  hintText: 'Username',
                   prefixIcon: Icons.alternate_email,
                   validator: Validators.validateUsername,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Email
                 CosmicTextField(
                   controller: _emailController,
-                  labelText: 'Email Address',
-                  hintText: 'name@example.com',
+                  labelText: 'Email',
+                  hintText: 'Email address',
                   prefixIcon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
                   validator: Validators.validateEmail,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Phone
                 CosmicTextField(
                   controller: _phoneController,
-                  labelText: 'Phone Number (Optional)',
+                  labelText: 'Mobile Number (Optional)',
                   hintText: '+91 98765 43210',
                   prefixIcon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
                   validator: Validators.validatePhone,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Password
                 CosmicTextField(
                   controller: _passwordController,
                   labelText: 'Password',
-                  hintText: 'Create a secure password',
+                  hintText: 'Password',
                   prefixIcon: Icons.lock_outline_rounded,
                   isPassword: true,
                   validator: Validators.validatePassword,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Confirm Password
                 CosmicTextField(
                   controller: _confirmPasswordController,
                   labelText: 'Confirm Password',
-                  hintText: 'Repeat password',
+                  hintText: 'Confirm Password',
                   prefixIcon: Icons.lock_reset_rounded,
                   isPassword: true,
                   validator: (val) {
@@ -312,29 +319,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // Submit Button
+                // Submit Button (Instagram Blue)
                 CosmicButton(
-                  text: 'Register',
+                  text: 'Sign up',
                   isLoading: authRepo.isLoading || _isUploadingPhoto,
                   onPressed: _handleRegister,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Sign In Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Already have an account? ',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                      'Have an account? ',
+                      style: TextStyle(color: AppColors.igMutedGrey, fontSize: 13),
                     ),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: const Text(
-                        'Sign In',
+                        'Log in',
                         style: TextStyle(
-                          color: AppColors.primaryLight,
-                          fontSize: 14,
+                          color: AppColors.igBlue,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

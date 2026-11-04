@@ -64,109 +64,147 @@ class _ContactsTabState extends State<ContactsTab> {
   Widget build(BuildContext context) {
     final currentUserId = Provider.of<AuthRepository>(context).currentUid;
     if (currentUserId == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primaryLight));
+      return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Contacts', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        title: const Text(
+          'Contacts',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_rounded, color: AppColors.primaryLight),
+            icon: const Icon(Icons.person_add_outlined, color: Colors.white, size: 24),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const UserSearchScreen()),
               );
             },
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: StreamBuilder<List<ContactModel>>(
         stream: _userRepository.streamContacts(currentUserId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primaryLight));
+            return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
           }
 
           final contacts = snapshot.data ?? [];
           if (contacts.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.cardBorder),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF121212),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF262626), width: 1.5),
+                      ),
+                      child: const Icon(Icons.people_outline_rounded, size: 40, color: Color(0xFF8E8E8E)),
                     ),
-                    child: const Icon(Icons.people_outline_rounded, size: 38, color: AppColors.primaryLight),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No contacts added yet',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Search for users on Cosmic to add them',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.search, size: 18),
-                    label: const Text('Discover People'),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const UserSearchScreen()),
-                      );
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    const Text(
+                      'No Contacts Yet',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Search for people on Cosmic to start direct chats, voice calls, and video calls.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13.5, color: Color(0xFF8E8E8E), height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: AppColors.igBlue,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.search_rounded, color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Discover People',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
-          return ListView.separated(
+          return ListView.builder(
             itemCount: contacts.length,
             padding: const EdgeInsets.symmetric(vertical: 8),
-            separatorBuilder: (_, __) => const Divider(
-              color: AppColors.cardBorder,
-              height: 1,
-              indent: 76,
-            ),
             itemBuilder: (context, index) {
               final contact = contacts[index];
 
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: AvatarWidget(
-                  name: contact.displayName,
-                  photoUrl: contact.profilePhoto,
-                  radius: 24,
-                ),
-                title: Text(
-                  contact.displayName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-                subtitle: Text(
-                  '@${contact.username}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
                   children: [
-                    // Start Chat
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.primaryLight, size: 22),
-                      onPressed: () async {
+                    AvatarWidget(
+                      name: contact.displayName,
+                      photoUrl: contact.profilePhoto,
+                      radius: 24,
+                      showStoryRing: true,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            contact.username.isNotEmpty ? contact.username : contact.displayName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            contact.displayName,
+                            style: const TextStyle(color: Color(0xFF8E8E8E), fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Message button
+                    GestureDetector(
+                      onTap: () async {
                         final targetUser = await _userRepository.getUserById(contact.contactId);
                         if (targetUser != null && context.mounted) {
                           Navigator.of(context).push(
@@ -176,10 +214,28 @@ class _ContactsTabState extends State<ContactsTab> {
                           );
                         }
                       },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF262626),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Message',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     ),
-                    // Voice Call 📞
+                    const SizedBox(width: 8),
+                    // Voice Call
                     IconButton(
-                      icon: const Icon(Icons.call_rounded, color: AppColors.secondary, size: 22),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(6),
+                      icon: const Icon(Icons.call_outlined, color: Colors.white70, size: 20),
                       onPressed: () async {
                         final targetUser = await _userRepository.getUserById(contact.contactId);
                         if (targetUser != null) {
@@ -187,9 +243,11 @@ class _ContactsTabState extends State<ContactsTab> {
                         }
                       },
                     ),
-                    // Video Call 🎥
+                    // Video Call
                     IconButton(
-                      icon: const Icon(Icons.videocam_rounded, color: AppColors.accentPink, size: 22),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(6),
+                      icon: const Icon(Icons.videocam_outlined, color: Colors.white70, size: 22),
                       onPressed: () async {
                         final targetUser = await _userRepository.getUserById(contact.contactId);
                         if (targetUser != null) {

@@ -247,6 +247,19 @@ class AuthRepository extends ChangeNotifier {
     }
   }
 
+  /// Resend Phone OTP using existing phone number
+  Future<void> resendPhoneOtp({
+    required String phoneNumber,
+    required Function(String verificationIdOrPhone) onCodeSent,
+    required Function(String error) onError,
+  }) async {
+    return sendPhoneOtp(
+      phoneNumber: phoneNumber,
+      onCodeSent: onCodeSent,
+      onError: onError,
+    );
+  }
+
   /// Phone number OTP Verification - Step 2: Verify OTP
   Future<UserModel> verifyPhoneOtp({
     required String smsCode,
@@ -372,6 +385,9 @@ class AuthRepository extends ChangeNotifier {
     _resendToken = null;
     notifyListeners();
   }
+
+  /// Sign out alias
+  Future<void> signOut() => logout();
 
   /// User-friendly Firebase Auth error messages
   String _mapFirebaseAuthError(FirebaseAuthException e) {

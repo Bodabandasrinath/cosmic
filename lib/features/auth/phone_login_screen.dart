@@ -4,8 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/validators.dart';
 import '../../repositories/auth_repository.dart';
-import '../../widgets/cosmic_button.dart';
-import '../../widgets/cosmic_text_field.dart';
 import '../home/home_screen.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
@@ -99,13 +97,6 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       onError: (error) {
         if (mounted) {
           setState(() => _errorMessage = error);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              backgroundColor: AppColors.callRed,
-              duration: const Duration(seconds: 5),
-            ),
-          );
         }
       },
     );
@@ -113,7 +104,30 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
 
   Future<void> _resendOtp() async {
     if (_cooldownSeconds > 0) return;
-    await _sendOtp();
+    setState(() => _errorMessage = null);
+
+    final fullPhone = _getFullPhoneNumber();
+    final authRepo = Provider.of<AuthRepository>(context, listen: false);
+
+    await authRepo.resendPhoneOtp(
+      phoneNumber: fullPhone,
+      onCodeSent: (id) {
+        if (mounted) {
+          _startCooldown();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('New code sent to $fullPhone'),
+              backgroundColor: AppColors.callGreen,
+            ),
+          );
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() => _errorMessage = error);
+        }
+      },
+    );
   }
 
   Future<void> _verifyOtp() async {
@@ -121,13 +135,17 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
 
     if (!_otpFormKey.currentState!.validate()) return;
 
-    final otp = _otpController.text.trim();
+    final smsCode = _otpController.text.trim();
+    final name = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : null;
+
     final authRepo = Provider.of<AuthRepository>(context, listen: false);
 
     try {
       await authRepo.verifyPhoneOtp(
-        smsCode: otp,
-        displayName: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : null,
+        smsCode: smsCode,
+        displayName: name,
       );
 
       if (mounted) {
@@ -138,15 +156,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final message = e.toString().replaceAll('Exception: ', '').replaceAll('AuthException: ', '');
-        setState(() => _errorMessage = message);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.callRed,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
       }
     }
   }
@@ -156,43 +168,52 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     final authRepo = Provider.of<AuthRepository>(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Phone Verification'),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header Icon
               Center(
                 child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
+                  width: 72,
+                  height: 72,
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: AppColors.cosmicGradient,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
-                        blurRadius: 18,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    gradient: AppColors.instagramStoryGradient,
                   ),
-                  child: const Icon(Icons.phone_android_rounded, size: 32, color: Colors.white),
+                  child: Container(
+                    margin: const EdgeInsets.all(2.5),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
+                    ),
+                    child: const Icon(
+                      Icons.phone_android_rounded,
+                      size: 34,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               Center(
                 child: Text(
-                  !_codeSent ? 'Enter Phone Number' : 'Enter 6-Digit Code',
+                  !_codeSent ? 'Enter your mobile number' : 'Enter confirmation code',
                   style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -200,10 +221,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
               Center(
                 child: Text(
                   !_codeSent
-                    ? 'Cosmic will send a 6-digit OTP code to verify your mobile number'
-                    : 'We sent a verification SMS to ${_getFullPhoneNumber()}',
+                      ? 'Cosmic will send a 6-digit verification code to this mobile number.'
+                      : 'We sent a verification code to ${_getFullPhoneNumber()}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: const TextStyle(color: Color(0xFF8E8E8E), fontSize: 13.5, height: 1.4),
                 ),
               ),
               const SizedBox(height: 28),
@@ -214,14 +235,14 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: AppColors.callRed.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.callRed.withValues(alpha: 0.4)),
+                    color: const Color(0xFF1E1014),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.igHeartRed.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.error_outline, color: AppColors.callRed, size: 20),
+                      const Icon(Icons.error_outline_rounded, color: AppColors.igHeartRed, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -245,25 +266,25 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            height: 56,
+                            height: 48,
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.cardBorder),
+                              color: const Color(0xFF121212),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF262626)),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
                                 value: _selectedCountryCode,
-                                dropdownColor: AppColors.surface,
-                                icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                                dropdownColor: const Color(0xFF1E1E1E),
+                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8E8E8E)),
                                 items: _countryCodes.map((item) {
                                   return DropdownMenuItem<String>(
                                     value: item['code'],
                                     child: Text(
                                       '${item['flag']} ${item['code']}',
                                       style: const TextStyle(
-                                        color: AppColors.textPrimary,
+                                        color: Colors.white,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -278,11 +299,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: CosmicTextField(
+                            child: TextFormField(
                               controller: _phoneController,
-                              labelText: 'Mobile Number',
-                              hintText: _selectedCountryCode == '+91' ? '98765 43210' : 'Mobile number',
-                              prefixIcon: Icons.phone_outlined,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
                               keyboardType: TextInputType.phone,
                               validator: (val) {
                                 if (_selectedCountryCode == '+91') {
@@ -290,15 +309,54 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                                 }
                                 return Validators.validatePhone(val);
                               },
+                              decoration: InputDecoration(
+                                hintText: _selectedCountryCode == '+91' ? '98765 43210' : 'Mobile number',
+                                hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 14),
+                                filled: true,
+                                fillColor: const Color(0xFF121212),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFF262626)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFF262626)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: AppColors.igBlue, width: 1.5),
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 28),
-                      CosmicButton(
-                        text: 'Send Verification Code',
-                        isLoading: authRepo.isLoading,
-                        onPressed: _sendOtp,
+                      const SizedBox(height: 24),
+                      GestureDetector(
+                        onTap: authRepo.isLoading ? null : _sendOtp,
+                        child: Container(
+                          height: 44,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.igBlue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: authRepo.isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Text(
+                                  'Send Code',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
                       ),
                     ],
                   ),
@@ -310,11 +368,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CosmicTextField(
+                      TextFormField(
                         controller: _otpController,
-                        labelText: '6-Digit SMS Code',
-                        hintText: '123456',
-                        prefixIcon: Icons.sms_outlined,
+                        style: const TextStyle(color: Colors.white, fontSize: 18, letterSpacing: 4),
+                        textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
                         validator: (val) {
                           if (val == null || val.trim().length != 6) {
@@ -322,19 +379,75 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                           }
                           return null;
                         },
+                        decoration: InputDecoration(
+                          hintText: '1 2 3 4 5 6',
+                          hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 16, letterSpacing: 4),
+                          filled: true,
+                          fillColor: const Color(0xFF121212),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF262626)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF262626)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.igBlue, width: 1.5),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      CosmicTextField(
+                      TextFormField(
                         controller: _nameController,
-                        labelText: 'Your Name (if new user)',
-                        hintText: 'e.g. Rahul Sharma',
-                        prefixIcon: Icons.badge_outlined,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Full name (optional if already registered)',
+                          hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 14),
+                          filled: true,
+                          fillColor: const Color(0xFF121212),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF262626)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF262626)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.igBlue, width: 1.5),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 24),
-                      CosmicButton(
-                        text: 'Verify & Sign In',
-                        isLoading: authRepo.isLoading,
-                        onPressed: _verifyOtp,
+                      GestureDetector(
+                        onTap: authRepo.isLoading ? null : _verifyOtp,
+                        child: Container(
+                          height: 44,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.igBlue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: authRepo.isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Text(
+                                  'Confirm',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
                       ),
                       const SizedBox(height: 20),
 
@@ -353,19 +466,19 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                             },
                             child: const Text(
                               'Change Number',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                              style: TextStyle(color: Color(0xFF8E8E8E), fontSize: 13),
                             ),
                           ),
                           TextButton(
                             onPressed: _cooldownSeconds == 0 ? _resendOtp : null,
                             child: Text(
                               _cooldownSeconds > 0
-                                  ? 'Resend OTP in ${_cooldownSeconds}s'
-                                  : 'Resend OTP',
+                                  ? 'Resend in ${_cooldownSeconds}s'
+                                  : 'Resend SMS code',
                               style: TextStyle(
                                 color: _cooldownSeconds == 0
-                                    ? AppColors.primaryLight
-                                    : AppColors.textMuted,
+                                    ? AppColors.igBlue
+                                    : const Color(0xFF555555),
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),

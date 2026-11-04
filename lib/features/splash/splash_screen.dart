@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
 import '../../repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import '../auth/login_screen.dart';
@@ -24,10 +23,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1400),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.75, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
 
@@ -37,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    Timer(const Duration(milliseconds: 2500), _checkAuthAndNavigate);
+    Timer(const Duration(milliseconds: 2200), _checkAuthAndNavigate);
   }
 
   void _checkAuthAndNavigate() {
@@ -70,70 +69,80 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Opacity(
-                opacity: _opacityAnimation.value,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Cosmic Pulsing Logo Ring
-                    Container(
-                      width: 110,
-                      height: 110,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.cosmicGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.5),
-                            blurRadius: 30,
-                            spreadRadius: 4,
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Centered Logo
+            Center(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Opacity(
+                      opacity: _opacityAnimation.value,
+                      child: Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.instagramStoryGradient,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD91A46).withValues(alpha: 0.4),
+                              blurRadius: 28,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.all_inclusive_rounded,
+                            size: 52,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.all_inclusive_rounded,
-                          size: 60,
-                          color: Colors.white,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    // App Title
-                    ShaderMask(
-                      shaderCallback: (bounds) => AppColors.cosmicGradient.createShader(bounds),
-                      child: const Text(
-                        'COSMIC',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 6,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Tagline
-                    const Text(
-                      AppConstants.appTagline,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+
+            // Bottom Brand Footer ("from COSMIC")
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'from',
+                    style: TextStyle(
+                      color: Color(0xFF8E8E8E),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ShaderMask(
+                    shaderCallback: (bounds) => AppColors.instagramStoryGradient.createShader(bounds),
+                    child: const Text(
+                      'COSMIC',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.5,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

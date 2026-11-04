@@ -267,28 +267,100 @@ class UserRepository {
     }
   }
 
-  /// Search users across Cosmic by username or displayName
+  /// Search users across Cosmic by username, displayName, or email
   Future<List<UserModel>> searchUsers(String query, {required String currentUserId}) async {
     final cleanQuery = query.trim().toLowerCase();
     if (cleanQuery.isEmpty) return [];
 
     try {
-      final usernameQuery = await _usersCol
+      final Map<String, UserModel> userMap = {};
+
+      // 1. Search by username prefix
+      final usernameSnap = await _usersCol
           .where('username', isGreaterThanOrEqualTo: cleanQuery)
           .where('username', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
           .limit(20)
           .get();
 
-      final results = <UserModel>[];
-      for (final doc in usernameQuery.docs) {
+      for (final doc in usernameSnap.docs) {
         if (doc.id != currentUserId) {
-          results.add(UserModel.fromDocument(doc));
+          userMap[doc.id] = UserModel.fromDocument(doc);
         }
       }
-      return results;
+
+      // 2. Search by email prefix
+      final emailSnap = await _usersCol
+          .where('email', isGreaterThanOrEqualTo: cleanQuery)
+          .where('email', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
+          .limit(20)
+          .get();
+
+      for (final doc in emailSnap.docs) {
+        if (doc.id != currentUserId) {
+          userMap[doc.id] = UserModel.fromDocument(doc);
+        }
+      }
+
+      // 3. Fallback / client-side match against recent users if few results
+      if (userMap.length < 5) {
+        final recentUsersSnap = await _usersCol.limit(30).get();
+        for (final doc in recentUsersSnap.docs) {
+          if (doc.id == currentUserId) continue;
+          final user = UserModel.fromDocument(doc);
+          if (user.displayName.toLowerCase().contains(cleanQuery) ||
+              user.name.toLowerCase().contains(cleanQuery) ||
+              user.username.toLowerCase().contains(cleanQuery) ||
+              user.email.toLowerCase().contains(cleanQuery)) {
+            userMap[user.uid] = user;
+          }
+        }
+      }
+
+      return userMap.values.toList();
     } catch (e) {
       if (kDebugMode) print('searchUsers error: $e');
       return [];
+    }
+  }
+
+  /// Report User
+  Future<void> reportUser({
+    required String reporterId,
+    required String reportedUserId,
+    required String reason,
+    String? details,
+  }) async {
+    try {
+      final docRef = _firestore.collection(AppConstants.reportsCollection).doc();
+      await docRef.set({
+        'reportId': docRef.id,
+        'reporterId': reporterId,
+        'reportedUserId': reportedUserId,
+        'reason': reason,
+        'details': details ?? '',
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      if (kDebugMode) print('reportUser error: ${e.code} - ${e.message}');
+      throw DatabaseException('Failed to submit report: ${e.message ?? e.code}');
+    } catch (e) {
+      if (kDebugMode) print('reportUser error: $e');
+      throw DatabaseException('Failed to submit report: $e');
+    }
+  }
+
+  /// Check if a user is blocked
+  Future<bool> isUserBlocked({required String currentUserId, required String targetUserId}) async {
+    try {
+      final doc = await _usersCol
+          .doc(currentUserId)
+          .collection(AppConstants.blockedSubcollection)
+          .doc(targetUserId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      return false;
     }
   }
 

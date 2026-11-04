@@ -27,6 +27,17 @@ service cloud.firestore {
       match /blocked/{blockedId} {
         allow read, write: if isOwner(userId);
       }
+
+      // User notifications subcollection
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     // Chats and Conversations

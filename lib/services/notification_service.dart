@@ -36,55 +36,59 @@ class NotificationService {
     }
 
     // 2. Initialize Android Local Notification Channels
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidInit);
+    if (!kIsWeb) {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInit);
 
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        if (response.payload != null) {
-          try {
-            final payloadMap = jsonDecode(response.payload!) as Map<String, dynamic>;
-            if (payloadMap['type'] == 'incoming_call') {
-              onCallPayload?.call(payloadMap);
-            } else {
-              onNotificationPayload?.call(payloadMap);
-            }
-          } catch (_) {}
-        }
-      },
-    );
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (response) {
+          if (response.payload != null) {
+            try {
+              final payloadMap = jsonDecode(response.payload!) as Map<String, dynamic>;
+              if (payloadMap['type'] == 'incoming_call') {
+                onCallPayload?.call(payloadMap);
+              } else {
+                onNotificationPayload?.call(payloadMap);
+              }
+            } catch (_) {}
+          }
+        },
+      );
 
-    // Create high importance channels
-    const AndroidNotificationChannel messagesChannel = AndroidNotificationChannel(
-      'cosmic_messages_channel',
-      'Cosmic Messages',
-      description: 'Notifications for new messages and photos',
-      importance: Importance.high,
-      enableVibration: true,
-    );
+      // Create high importance channels
+      const AndroidNotificationChannel messagesChannel = AndroidNotificationChannel(
+        'cosmic_messages_channel',
+        'Cosmic Messages',
+        description: 'Notifications for new messages and photos',
+        importance: Importance.high,
+        enableVibration: true,
+      );
 
-    const AndroidNotificationChannel callsChannel = AndroidNotificationChannel(
-      'cosmic_calls_channel',
-      'Cosmic Calls',
-      description: 'Incoming voice and video call alerts',
-      importance: Importance.max,
-      sound: RawResourceAndroidNotificationSound('call_ringtone'),
-      playSound: true,
-      enableVibration: true,
-    );
+      const AndroidNotificationChannel callsChannel = AndroidNotificationChannel(
+        'cosmic_calls_channel',
+        'Cosmic Calls',
+        description: 'Incoming voice and video call alerts',
+        importance: Importance.max,
+        sound: RawResourceAndroidNotificationSound('call_ringtone'),
+        playSound: true,
+        enableVibration: true,
+      );
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(messagesChannel);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(messagesChannel);
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(callsChannel);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(callsChannel);
+    }
 
     // 3. Foreground FCM listener
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showLocalNotification(message);
+      if (!kIsWeb) {
+        _showLocalNotification(message);
+      }
     });
 
     // 4. Background handler

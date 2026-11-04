@@ -38,6 +38,8 @@ class MessageModel {
   final String? replyToMessageId;
   final String? replyToText;
   final String? replyToSenderName;
+  final Map<String, String> reactions; // userId -> emoji (e.g. {'uid1': '❤️', 'uid2': '😂'})
+  final bool isDeleted;
 
   MessageModel({
     required this.id,
@@ -55,6 +57,8 @@ class MessageModel {
     this.replyToMessageId,
     this.replyToText,
     this.replyToSenderName,
+    this.reactions = const {},
+    this.isDeleted = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -74,6 +78,8 @@ class MessageModel {
       'replyToMessageId': replyToMessageId,
       'replyToText': replyToText,
       'replyToSenderName': replyToSenderName,
+      'reactions': reactions,
+      'isDeleted': isDeleted,
     };
   }
 
@@ -83,6 +89,17 @@ class MessageModel {
       if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
       if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
       return DateTime.now();
+    }
+
+    // Parse reactions map safely
+    final rawReactions = map['reactions'];
+    final reactionsMap = <String, String>{};
+    if (rawReactions is Map) {
+      rawReactions.forEach((key, value) {
+        if (key != null && value != null) {
+          reactionsMap[key.toString()] = value.toString();
+        }
+      });
     }
 
     return MessageModel(
@@ -101,6 +118,8 @@ class MessageModel {
       replyToMessageId: map['replyToMessageId'],
       replyToText: map['replyToText'],
       replyToSenderName: map['replyToSenderName'],
+      reactions: reactionsMap,
+      isDeleted: map['isDeleted'] ?? false,
     );
   }
 
@@ -125,6 +144,8 @@ class MessageModel {
     String? replyToMessageId,
     String? replyToText,
     String? replyToSenderName,
+    Map<String, String>? reactions,
+    bool? isDeleted,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -142,6 +163,8 @@ class MessageModel {
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       replyToText: replyToText ?? this.replyToText,
       replyToSenderName: replyToSenderName ?? this.replyToSenderName,
+      reactions: reactions ?? this.reactions,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

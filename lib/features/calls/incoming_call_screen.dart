@@ -48,10 +48,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
   }
 
   Future<void> _declineCall() async {
-    await _callRepository.updateCallLogStatus(
-      callId: widget.call.callId,
-      currentUserId: widget.call.receiverId,
-      status: CallStatus.rejected,
+    await _callRepository.rejectCall(
+      widget.call.callId,
+      receiverId: widget.call.receiverId,
     );
     if (mounted) Navigator.of(context).pop();
   }

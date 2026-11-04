@@ -110,7 +110,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
           onChanged: _performSearch,
           decoration: InputDecoration(
-            hintText: 'Search people by @username...',
+            hintText: 'Search people by name, @username, or email...',
             prefixIcon: const Icon(Icons.search, color: AppColors.primaryLight, size: 20),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(

@@ -277,8 +277,24 @@ class WebRTCService {
         'endedAt': FieldValue.serverTimestamp(),
         'durationSeconds': durationSeconds,
       });
+      await _cleanupSignaling(callId);
     } catch (_) {}
     dispose();
+  }
+
+  /// Clean up candidate signaling subcollections to preserve database storage & privacy
+  Future<void> _cleanupSignaling(String callId) async {
+    try {
+      final callDocRef = _firestore.collection(AppConstants.callsCollection).doc(callId);
+      final callerCands = await callDocRef.collection(AppConstants.callerCandidatesSubcollection).get();
+      for (final doc in callerCands.docs) {
+        await doc.reference.delete();
+      }
+      final receiverCands = await callDocRef.collection(AppConstants.receiverCandidatesSubcollection).get();
+      for (final doc in receiverCands.docs) {
+        await doc.reference.delete();
+      }
+    } catch (_) {}
   }
 
   /// Media Controls
@@ -306,15 +322,25 @@ class WebRTCService {
     if (_localStream != null) {
       final videoTracks = _localStream!.getVideoTracks();
       if (videoTracks.isNotEmpty) {
-        Helper.switchCamera(videoTracks[0]);
-        _isFrontCamera = !_isFrontCamera;
+        try {
+          Helper.switchCamera(videoTracks[0]);
+          _isFrontCamera = !_isFrontCamera;
+        } catch (e) {
+          if (kDebugMode) print('switchCamera error: $e');
+        }
       }
     }
   }
 
   void setSpeakerphoneOn(bool enable) {
     _isSpeakerOn = enable;
-    Helper.setSpeakerphoneOn(enable);
+    if (!kIsWeb) {
+      try {
+        Helper.setSpeakerphoneOn(enable);
+      } catch (e) {
+        if (kDebugMode) print('Helper.setSpeakerphoneOn error: $e');
+      }
+    }
   }
 
   void toggleSpeaker() {

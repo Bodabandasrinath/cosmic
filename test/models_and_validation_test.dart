@@ -103,6 +103,37 @@ void main() {
       expect(audioMsg.durationSeconds, 15);
     });
 
+    test('MessageModel accurately handles reactions and soft-delete states', () {
+      final now = DateTime.now();
+      final msg = MessageModel(
+        id: 'msg_react',
+        senderId: 'user_a',
+        receiverId: 'user_b',
+        chatId: 'chat_ab',
+        text: 'Look at the moon tonight!',
+        type: MessageType.text,
+        timestamp: now,
+        reactions: {'user_b': '❤️', 'user_c': '🔥'},
+        isDeleted: false,
+      );
+
+      final map = msg.toMap();
+      expect(map['reactions'], {'user_b': '❤️', 'user_c': '🔥'});
+      expect(map['isDeleted'], false);
+
+      final reconstructed = MessageModel.fromMap(map, documentId: 'msg_react');
+      expect(reconstructed.reactions['user_b'], '❤️');
+      expect(reconstructed.reactions['user_c'], '🔥');
+      expect(reconstructed.isDeleted, false);
+
+      final deletedMsg = reconstructed.copyWith(
+        isDeleted: true,
+        text: 'This message was deleted',
+      );
+      expect(deletedMsg.isDeleted, true);
+      expect(deletedMsg.text, 'This message was deleted');
+    });
+
     test('ChatModel accurately tracks unread counts and participants', () {
       final now = DateTime.now();
       final chat = ChatModel(

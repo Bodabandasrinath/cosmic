@@ -91,10 +91,12 @@ class ChatRepository {
       durationSeconds: durationSeconds,
       timestamp: now,
       isSeen: false,
-      isDelivered: true,
+      isDelivered: false,
       replyToMessageId: replyToMessageId,
       replyToText: replyToText,
       replyToSenderName: replyToSenderName,
+      reactions: {},
+      isDeleted: false,
     );
 
     // Batch write message and update conversation lastMessage & unread count
@@ -126,6 +128,38 @@ class ChatRepository {
     await batch.commit();
   }
 
+  /// Toggle message reaction (Instagram-style ❤️, 😂, 😮, 😢, 👏, 🔥)
+  Future<void> toggleReaction({
+    required String chatId,
+    required String messageId,
+    required String userId,
+    required String emoji,
+  }) async {
+    final messageRef = _firestore
+        .collection(AppConstants.chatsCollection)
+        .doc(chatId)
+        .collection(AppConstants.messagesCollection)
+        .doc(messageId);
+
+    final snapshot = await messageRef.get();
+    if (!snapshot.exists) return;
+
+    final data = snapshot.data() ?? {};
+    final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
+
+    if (reactions[userId] == emoji) {
+      // Remove reaction if already applied
+      await messageRef.update({
+        'reactions.$userId': FieldValue.delete(),
+      });
+    } else {
+      // Set / update reaction
+      await messageRef.update({
+        'reactions.$userId': emoji,
+      });
+    }
+  }
+
   /// Mark all messages in a chat as seen by the current user
   Future<void> markMessagesAsSeen({
     required String chatId,
@@ -143,7 +177,10 @@ class ChatRepository {
 
     final batch = _firestore.batch();
     for (final doc in unreadMessages.docs) {
-      batch.update(doc.reference, {'isSeen': true});
+      batch.update(doc.reference, {
+        'isSeen': true,
+        'isDelivered': true,
+      });
     }
 
     final chatRef = _firestore.collection(AppConstants.chatsCollection).doc(chatId);
@@ -154,20 +191,63 @@ class ChatRepository {
     await batch.commit();
   }
 
-  /// Delete message
+  /// Mark messages as delivered when receiver is online
+  Future<void> markMessagesAsDelivered({
+    required String chatId,
+    required String currentUserId,
+  }) async {
+    final undelivered = await _firestore
+        .collection(AppConstants.chatsCollection)
+        .doc(chatId)
+        .collection(AppConstants.messagesCollection)
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('isDelivered', isEqualTo: false)
+        .get();
+
+    if (undelivered.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final doc in undelivered.docs) {
+      batch.update(doc.reference, {'isDelivered': true});
+    }
+    await batch.commit();
+  }
+
+  /// Delete message (supports soft delete for everyone or deletion)
   Future<void> deleteMessage({
     required String chatId,
     required String messageId,
     required String senderId,
     required String currentUserId,
+    bool forEveryone = true,
   }) async {
     if (senderId != currentUserId) return; // Users can only delete their own messages
 
-    await _firestore
+    final messageRef = _firestore
         .collection(AppConstants.chatsCollection)
         .doc(chatId)
         .collection(AppConstants.messagesCollection)
-        .doc(messageId)
-        .delete();
+        .doc(messageId);
+
+    if (forEveryone) {
+      // Soft-delete so chat history shows "This message was deleted"
+      await messageRef.update({
+        'text': 'This message was deleted',
+        'isDeleted': true,
+        'mediaUrl': null,
+        'thumbnailUrl': null,
+        'type': MessageType.text.toShortString(),
+        'reactions': {},
+      });
+    } else {
+      await messageRef.delete();
+    }
+  }
+
+  /// Filter messages in a chat by search query
+  List<MessageModel> filterMessages(List<MessageModel> messages, String query) {
+    final clean = query.trim().toLowerCase();
+    if (clean.isEmpty) return messages;
+    return messages.where((m) => !m.isDeleted && m.text.toLowerCase().contains(clean)).toList();
   }
 }

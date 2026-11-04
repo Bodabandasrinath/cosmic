@@ -14,6 +14,23 @@ class CallRepository {
     required UserModel receiver,
     required CallType type,
   }) async {
+    // Check if receiver is already in an active call session
+    final activeSnap = await _firestore
+        .collection(AppConstants.callsCollection)
+        .where('receiverId', isEqualTo: receiver.uid)
+        .where('status', whereIn: [
+          CallStatus.calling.toShortString(),
+          CallStatus.ringing.toShortString(),
+          CallStatus.accepted.toShortString(),
+          CallStatus.connected.toShortString(),
+        ])
+        .limit(1)
+        .get();
+
+    if (activeSnap.docs.isNotEmpty) {
+      throw 'User is currently on another call';
+    }
+
     // Generate technical internal session ID
     final internalCallId = _uuid.v4();
 
@@ -51,6 +68,36 @@ class CallRepository {
     );
 
     return call;
+  }
+
+  /// Reject incoming call and update caller & log
+  Future<void> rejectCall(String callId, {required String receiverId}) async {
+    try {
+      await _firestore.collection(AppConstants.callsCollection).doc(callId).update({
+        'status': CallStatus.rejected.toShortString(),
+        'endedAt': FieldValue.serverTimestamp(),
+      });
+      await updateCallLogStatus(
+        callId: callId,
+        currentUserId: receiverId,
+        status: CallStatus.rejected,
+      );
+    } catch (_) {}
+  }
+
+  /// Clean up call signaling documents and ICE candidate subcollections
+  Future<void> cleanupCallSignaling(String callId) async {
+    try {
+      final callRef = _firestore.collection(AppConstants.callsCollection).doc(callId);
+      final callerCands = await callRef.collection(AppConstants.callerCandidatesSubcollection).get();
+      for (final doc in callerCands.docs) {
+        await doc.reference.delete();
+      }
+      final receiverCands = await callRef.collection(AppConstants.receiverCandidatesSubcollection).get();
+      for (final doc in receiverCands.docs) {
+        await doc.reference.delete();
+      }
+    } catch (_) {}
   }
 
   /// Listen for incoming calls for the current user in real-time

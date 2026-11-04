@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "320838985453",
+    "project_id": "cosmic-ed916",
+    "storage_bucket": "cosmic-ed916.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:320838985453:android:e5d22410ef7a3e8a48cee4",
+        "android_client_info": {
+          "package_name": "com.cosmic.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPETFB_rphiJjjXlPrLQ59SBvKi6MS1ms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

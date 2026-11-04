@@ -10,6 +10,18 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    function getCallDocData(callId) {
+      return get(/databases/$(database)/documents/calls/$(callId)).data;
+    }
+
+    function isCallParticipant(callId) {
+      return isAuthenticated() && (
+        getCallDocData(callId).callerId == request.auth.uid ||
+        getCallDocData(callId).receiverId == request.auth.uid ||
+        (('participants' in getCallDocData(callId)) && (request.auth.uid in getCallDocData(callId).participants))
+      );
+    }
     
     // User Profiles
     match /users/{userId} {
@@ -71,37 +83,60 @@ service cloud.firestore {
 
     // WebRTC Direct Calling Signaling
     match /calls/{callId} {
-      // Direct call: caller or receiver only
+      // Direct call: caller or receiver or participant only
       allow read: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
+        resource.data.receiverId == request.auth.uid ||
+        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
       );
-      allow create: if isAuthenticated() && request.resource.data.callerId == request.auth.uid;
+      
+      allow create: if isAuthenticated() && (
+        request.resource.data.callerId == request.auth.uid ||
+        (('participants' in request.resource.data) && (request.auth.uid in request.resource.data.participants))
+      );
+      
       allow update: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
+        resource.data.receiverId == request.auth.uid ||
+        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
       );
+      
       allow delete: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
+        resource.data.receiverId == request.auth.uid ||
+        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
       );
 
       // Caller ICE Candidates
       match /callerCandidates/{candidateId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
+        allow read: if isCallParticipant(callId);
+        allow create: if isAuthenticated() && (
+          getCallDocData(callId).callerId == request.auth.uid ||
+          (('participants' in getCallDocData(callId)) && (request.auth.uid in getCallDocData(callId).participants))
+        );
+        allow update, delete: if isCallParticipant(callId);
       }
 
       // Receiver ICE Candidates
       match /receiverCandidates/{candidateId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
+        allow read: if isCallParticipant(callId);
+        allow create: if isAuthenticated() && (
+          getCallDocData(callId).receiverId == request.auth.uid ||
+          (('participants' in getCallDocData(callId)) && (request.auth.uid in getCallDocData(callId).participants))
+        );
+        allow update, delete: if isCallParticipant(callId);
       }
     }
 
     // Call History Logs
     match /call_logs/{userId}/logs/{logId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create: if isAuthenticated() && (
+        isOwner(userId) || 
+        request.resource.data.callerId == request.auth.uid ||
+        request.resource.data.receiverId == request.auth.uid
+      );
+      allow update, delete: if isOwner(userId);
     }
   }
 }

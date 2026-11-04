@@ -80,15 +80,17 @@ class WebRTCService {
     final mediaConstraints = <String, dynamic>{
       'audio': true,
       'video': type == CallType.video
-          ? {
-              'mandatory': {
-                'minWidth': '640',
-                'minHeight': '480',
-                'minFrameRate': '30',
-              },
-              'facingMode': 'user',
-              'optional': [],
-            }
+          ? (kIsWeb
+              ? {'facingMode': 'user'}
+              : {
+                  'mandatory': {
+                    'minWidth': '640',
+                    'minHeight': '480',
+                    'minFrameRate': '30',
+                  },
+                  'facingMode': 'user',
+                  'optional': [],
+                })
           : false,
     };
 
@@ -138,7 +140,7 @@ class WebRTCService {
       ...call.toMap(),
       'sdpOffer': offer.toMap(),
       'status': CallStatus.calling.toShortString(),
-    });
+    }, SetOptions(merge: true));
 
     // Listen to call doc for Answer and Status changes
     _callSubscription = callDocRef.snapshots().listen((snapshot) async {
@@ -370,3 +372,4 @@ class WebRTCService {
     remoteRenderer.dispose();
   }
 }
+

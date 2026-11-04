@@ -14,21 +14,28 @@ class CallRepository {
     required UserModel receiver,
     required CallType type,
   }) async {
-    // Check if receiver is already in an active call session
-    final activeSnap = await _firestore
-        .collection(AppConstants.callsCollection)
-        .where('receiverId', isEqualTo: receiver.uid)
-        .where('status', whereIn: [
-          CallStatus.calling.toShortString(),
-          CallStatus.ringing.toShortString(),
-          CallStatus.accepted.toShortString(),
-          CallStatus.connected.toShortString(),
-        ])
-        .limit(1)
-        .get();
+    // Check if there is already an active session between caller and receiver
+    try {
+      final activeSnap = await _firestore
+          .collection(AppConstants.callsCollection)
+          .where('callerId', isEqualTo: caller.uid)
+          .where('receiverId', isEqualTo: receiver.uid)
+          .where('status', whereIn: [
+            CallStatus.calling.toShortString(),
+            CallStatus.ringing.toShortString(),
+            CallStatus.accepted.toShortString(),
+            CallStatus.connected.toShortString(),
+          ])
+          .limit(1)
+          .get();
 
-    if (activeSnap.docs.isNotEmpty) {
-      throw 'User is currently on another call';
+      if (activeSnap.docs.isNotEmpty) {
+        throw 'A call is already in progress with this user';
+      }
+    } catch (e) {
+      if (e.toString().contains('already in progress')) {
+        rethrow;
+      }
     }
 
     // Generate technical internal session ID
@@ -71,16 +78,20 @@ class CallRepository {
   }
 
   /// Reject incoming call and update caller & log
-  Future<void> rejectCall(String callId, {required String receiverId}) async {
+  Future<void> rejectCall(
+    String callId, {
+    required String receiverId,
+    CallStatus status = CallStatus.rejected,
+  }) async {
     try {
       await _firestore.collection(AppConstants.callsCollection).doc(callId).update({
-        'status': CallStatus.rejected.toShortString(),
+        'status': status.toShortString(),
         'endedAt': FieldValue.serverTimestamp(),
       });
       await updateCallLogStatus(
         callId: callId,
         currentUserId: receiverId,
-        status: CallStatus.rejected,
+        status: status,
       );
     } catch (_) {}
   }
@@ -179,3 +190,4 @@ class CallRepository {
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
 }
+

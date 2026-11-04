@@ -88,6 +88,7 @@ class CallModel {
       'callId': callId,
       'callerId': callerId,
       'receiverId': receiverId,
+      'participants': [callerId, receiverId],
       'callerName': callerName,
       'callerPhoto': callerPhoto,
       'receiverName': receiverName,
@@ -179,3 +180,5 @@ class CallModel {
     );
   }
 }
+
+

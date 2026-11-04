@@ -51,7 +51,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // Listen for incoming WebRTC calls in real-time
       _incomingCallSub = _callRepository.streamIncomingCalls(uid).listen((call) {
-        if (call != null && !_isCallModalShowing && mounted) {
+        if (call != null && mounted) {
+          if (_isCallModalShowing) {
+            // Already in a call modal - automatically send busy response
+            _callRepository.rejectCall(
+              call.callId,
+              receiverId: uid,
+              status: CallStatus.busy,
+            );
+            return;
+          }
+
           _isCallModalShowing = true;
           Navigator.of(context)
               .push(
@@ -168,3 +178,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 }
+

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../models/call_model.dart';
 import '../../repositories/call_repository.dart';
+import '../../repositories/chat_repository.dart';
 import '../../services/webrtc_service.dart';
 import '../../widgets/avatar_widget.dart';
 import 'active_video_call_screen.dart';
@@ -25,6 +26,7 @@ class ActiveVoiceCallScreen extends StatefulWidget {
 class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with SingleTickerProviderStateMixin {
   final WebRTCService _webRTCService = WebRTCService();
   final CallRepository _callRepository = CallRepository();
+  final ChatRepository _chatRepository = ChatRepository();
 
   CallStatus _status = CallStatus.calling;
   int _durationSeconds = 0;
@@ -100,6 +102,22 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
       callId: widget.call.callId,
       currentUserId: widget.isCaller ? widget.call.callerId : widget.call.receiverId,
       status: endStatus,
+      durationSeconds: _durationSeconds,
+    );
+
+    // Save call event message in chat history
+    final callStatusStr = (endStatus == CallStatus.connected || endStatus == CallStatus.ended)
+        ? (_durationSeconds > 0 ? 'completed' : 'cancelled')
+        : (endStatus == CallStatus.missed ? 'missed' : 'rejected');
+
+    await _chatRepository.saveCallEventMessage(
+      callerId: widget.call.callerId,
+      receiverId: widget.call.receiverId,
+      callType: 'voice',
+      callStatus: callStatusStr,
+      callId: widget.call.callId,
+      startedAt: widget.call.createdAt,
+      endedAt: DateTime.now(),
       durationSeconds: _durationSeconds,
     );
 
@@ -335,3 +353,4 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
     );
   }
 }
+

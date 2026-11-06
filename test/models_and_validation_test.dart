@@ -55,7 +55,7 @@ void main() {
   });
 
   group('Chat & Messaging Model Tests', () {
-    test('MessageModel supports text, image, video, audio types', () {
+    test('MessageModel supports text, image, video, audio, call types', () {
       final now = DateTime.now();
 
       final textMsg = MessageModel(
@@ -72,6 +72,38 @@ void main() {
 
       expect(textMsg.type, MessageType.text);
       expect(textMsg.toMap()['type'], 'text');
+
+      final callMsg = MessageModel(
+        id: 'call_internal_123',
+        senderId: 'user_a',
+        receiverId: 'user_b',
+        chatId: 'chat_ab',
+        text: 'Outgoing video call (1m 15s)',
+        type: MessageType.call,
+        callType: 'video',
+        callStatus: 'completed',
+        startedAt: now,
+        endedAt: now.add(const Duration(seconds: 75)),
+        durationSeconds: 75,
+        timestamp: now,
+      );
+
+      expect(callMsg.type, MessageType.call);
+      expect(callMsg.callType, 'video');
+      expect(callMsg.callStatus, 'completed');
+      expect(callMsg.durationSeconds, 75);
+
+      final callMap = callMsg.toMap();
+      expect(callMap['type'], 'call');
+      expect(callMap['callType'], 'video');
+      expect(callMap['callStatus'], 'completed');
+      expect(callMap['durationSeconds'], 75);
+
+      final reconstructedCall = MessageModel.fromMap(callMap, documentId: 'call_internal_123');
+      expect(reconstructedCall.type, MessageType.call);
+      expect(reconstructedCall.callType, 'video');
+      expect(reconstructedCall.callStatus, 'completed');
+      expect(reconstructedCall.durationSeconds, 75);
 
       final imageMsg = MessageModel(
         id: 'msg_2',

@@ -4,7 +4,8 @@ enum MessageType {
   text,
   image,
   video,
-  audio;
+  audio,
+  call;
 
   static MessageType fromString(String val) {
     switch (val.toLowerCase()) {
@@ -14,6 +15,8 @@ enum MessageType {
         return MessageType.video;
       case 'audio':
         return MessageType.audio;
+      case 'call':
+        return MessageType.call;
       default:
         return MessageType.text;
     }
@@ -41,6 +44,12 @@ class MessageModel {
   final Map<String, String> reactions; // userId -> emoji (e.g. {'uid1': '❤️', 'uid2': '😂'})
   final bool isDeleted;
 
+  // Call Event Details (when type == MessageType.call)
+  final String? callType; // 'voice' or 'video'
+  final String? callStatus; // 'completed', 'missed', 'rejected', 'cancelled'
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+
   MessageModel({
     required this.id,
     required this.senderId,
@@ -59,6 +68,10 @@ class MessageModel {
     this.replyToSenderName,
     this.reactions = const {},
     this.isDeleted = false,
+    this.callType,
+    this.callStatus,
+    this.startedAt,
+    this.endedAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -80,6 +93,10 @@ class MessageModel {
       'replyToSenderName': replyToSenderName,
       'reactions': reactions,
       'isDeleted': isDeleted,
+      'callType': callType,
+      'callStatus': callStatus,
+      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
+      'endedAt': endedAt != null ? Timestamp.fromDate(endedAt!) : null,
     };
   }
 
@@ -89,6 +106,14 @@ class MessageModel {
       if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
       if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
       return DateTime.now();
+    }
+
+    DateTime? parseNullableDate(dynamic val) {
+      if (val == null) return null;
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val);
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      return null;
     }
 
     // Parse reactions map safely
@@ -111,7 +136,9 @@ class MessageModel {
       text: map['text'] ?? '',
       mediaUrl: map['mediaUrl'],
       thumbnailUrl: map['thumbnailUrl'],
-      durationSeconds: map['durationSeconds'],
+      durationSeconds: map['durationSeconds'] != null
+          ? (map['durationSeconds'] as num).toInt()
+          : null,
       timestamp: parseDate(map['timestamp']),
       isSeen: map['isSeen'] ?? false,
       isDelivered: map['isDelivered'] ?? false,
@@ -120,6 +147,10 @@ class MessageModel {
       replyToSenderName: map['replyToSenderName'],
       reactions: reactionsMap,
       isDeleted: map['isDeleted'] ?? false,
+      callType: map['callType'] as String?,
+      callStatus: map['callStatus'] as String?,
+      startedAt: parseNullableDate(map['startedAt']),
+      endedAt: parseNullableDate(map['endedAt']),
     );
   }
 
@@ -146,6 +177,10 @@ class MessageModel {
     String? replyToSenderName,
     Map<String, String>? reactions,
     bool? isDeleted,
+    String? callType,
+    String? callStatus,
+    DateTime? startedAt,
+    DateTime? endedAt,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -165,6 +200,10 @@ class MessageModel {
       replyToSenderName: replyToSenderName ?? this.replyToSenderName,
       reactions: reactions ?? this.reactions,
       isDeleted: isDeleted ?? this.isDeleted,
+      callType: callType ?? this.callType,
+      callStatus: callStatus ?? this.callStatus,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
     );
   }
 }

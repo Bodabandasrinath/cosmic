@@ -35,7 +35,7 @@ class ChatRepository {
           currentUserId: 0,
           otherUserId: 0,
         },
-      });
+      }, SetOptions(merge: true));
     }
 
     return chatId;
@@ -62,7 +62,7 @@ class ChatRepository {
         .map((snapshot) => snapshot.docs.map((doc) => MessageModel.fromDocument(doc)).toList());
   }
 
-  /// Send a message
+  /// Send a message (text, photo, video, voice note)
   Future<void> sendMessage({
     required String chatId,
     required String senderId,
@@ -102,14 +102,6 @@ class ChatRepository {
     // Batch write message and update conversation lastMessage & unread count
     final batch = _firestore.batch();
 
-    final messageRef = _firestore
-        .collection(AppConstants.chatsCollection)
-        .doc(chatId)
-        .collection(AppConstants.messagesCollection)
-        .doc(messageId);
-
-    batch.set(messageRef, message.toMap());
-
     final chatRef = _firestore.collection(AppConstants.chatsCollection).doc(chatId);
 
     String lastPreview = text;
@@ -117,13 +109,91 @@ class ChatRepository {
     if (type == MessageType.video) lastPreview = '🎥 Video';
     if (type == MessageType.audio) lastPreview = '🎤 Voice message';
 
-    batch.update(chatRef, {
+    // Always merge participants so chat document is guaranteed to exist and be accessible
+    batch.set(chatRef, {
+      'id': chatId,
+      'participants': [senderId, receiverId],
       'lastMessage': lastPreview,
       'lastMessageType': type.toShortString(),
       'lastMessageTime': FieldValue.serverTimestamp(),
       'lastSenderId': senderId,
       'unreadCounts.$receiverId': FieldValue.increment(1),
-    });
+      'unreadCounts.$senderId': 0,
+    }, SetOptions(merge: true));
+
+    final messageRef = chatRef
+        .collection(AppConstants.messagesCollection)
+        .doc(messageId);
+
+    batch.set(messageRef, message.toMap());
+
+    await batch.commit();
+  }
+
+  /// Save a call-history event inside chats/{chatId}/messages/{messageId}
+  /// When a call finishes, is rejected or is missed.
+  Future<void> saveCallEventMessage({
+    required String callerId,
+    required String receiverId,
+    required String callType, // 'voice' or 'video'
+    required String callStatus, // 'completed', 'missed', 'rejected', 'cancelled'
+    required String callId,
+    DateTime? startedAt,
+    DateTime? endedAt,
+    int durationSeconds = 0,
+  }) async {
+    final chatId = getChatId(callerId, receiverId);
+    final messageId = 'call_$callId'; // Deterministic ID ensures idempotency and no duplicates
+    final now = DateTime.now();
+
+    final isVideo = callType == 'video';
+    String callText;
+    if (callStatus == 'completed') {
+      final durationStr = durationSeconds > 0
+          ? ' (${durationSeconds ~/ 60}:${(durationSeconds % 60).toString().padLeft(2, '0')})'
+          : '';
+      callText = isVideo ? '🎥 Video call$durationStr' : '📞 Voice call$durationStr';
+    } else if (callStatus == 'missed') {
+      callText = isVideo ? '🎥 Missed video call' : '📞 Missed voice call';
+    } else if (callStatus == 'rejected') {
+      callText = isVideo ? '🎥 Declined video call' : '📞 Declined voice call';
+    } else {
+      callText = isVideo ? '🎥 Cancelled video call' : '📞 Cancelled voice call';
+    }
+
+    final message = MessageModel(
+      id: messageId,
+      senderId: callerId,
+      receiverId: receiverId,
+      chatId: chatId,
+      type: MessageType.call,
+      text: callText,
+      callType: callType,
+      callStatus: callStatus,
+      startedAt: startedAt ?? now,
+      endedAt: endedAt ?? now,
+      durationSeconds: durationSeconds,
+      timestamp: endedAt ?? now,
+      isSeen: false,
+      isDelivered: true,
+      reactions: {},
+      isDeleted: false,
+    );
+
+    final batch = _firestore.batch();
+    final chatRef = _firestore.collection(AppConstants.chatsCollection).doc(chatId);
+
+    batch.set(chatRef, {
+      'id': chatId,
+      'participants': [callerId, receiverId],
+      'lastMessage': callText,
+      'lastMessageType': 'call',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastSenderId': callerId,
+    }, SetOptions(merge: true));
+
+    final messageRef = chatRef.collection(AppConstants.messagesCollection).doc(messageId);
+    batch.set(messageRef, message.toMap(), SetOptions(merge: true));
 
     await batch.commit();
   }
@@ -173,8 +243,6 @@ class ChatRepository {
         .where('isSeen', isEqualTo: false)
         .get();
 
-    if (unreadMessages.docs.isEmpty) return;
-
     final batch = _firestore.batch();
     for (final doc in unreadMessages.docs) {
       batch.update(doc.reference, {
@@ -184,9 +252,9 @@ class ChatRepository {
     }
 
     final chatRef = _firestore.collection(AppConstants.chatsCollection).doc(chatId);
-    batch.update(chatRef, {
+    batch.set(chatRef, {
       'unreadCounts.$currentUserId': 0,
-    });
+    }, SetOptions(merge: true));
 
     await batch.commit();
   }
@@ -218,11 +286,9 @@ class ChatRepository {
     required String chatId,
     required String messageId,
     required String senderId,
-    required String currentUserId,
+    String? currentUserId,
     bool forEveryone = true,
   }) async {
-    if (senderId != currentUserId) return; // Users can only delete their own messages
-
     final messageRef = _firestore
         .collection(AppConstants.chatsCollection)
         .doc(chatId)
@@ -230,24 +296,24 @@ class ChatRepository {
         .doc(messageId);
 
     if (forEveryone) {
-      // Soft-delete so chat history shows "This message was deleted"
+      // Soft-delete to preserve chat history integrity
       await messageRef.update({
-        'text': 'This message was deleted',
         'isDeleted': true,
+        'text': 'This message was deleted',
         'mediaUrl': null,
-        'thumbnailUrl': null,
-        'type': MessageType.text.toShortString(),
-        'reactions': {},
       });
     } else {
       await messageRef.delete();
     }
   }
 
-  /// Filter messages in a chat by search query
+  /// Filter messages in search
   List<MessageModel> filterMessages(List<MessageModel> messages, String query) {
-    final clean = query.trim().toLowerCase();
-    if (clean.isEmpty) return messages;
-    return messages.where((m) => !m.isDeleted && m.text.toLowerCase().contains(clean)).toList();
+    if (query.trim().isEmpty) return messages;
+    final lower = query.toLowerCase();
+    return messages.where((msg) {
+      return msg.text.toLowerCase().contains(lower) && !msg.isDeleted;
+    }).toList();
   }
 }
+

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/call_model.dart';
 import '../../repositories/call_repository.dart';
+import '../../repositories/chat_repository.dart';
 import '../../widgets/avatar_widget.dart';
 import 'active_voice_call_screen.dart';
 import 'active_video_call_screen.dart';
@@ -18,6 +19,7 @@ class IncomingCallScreen extends StatefulWidget {
 
 class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTickerProviderStateMixin {
   final CallRepository _callRepository = CallRepository();
+  final ChatRepository _chatRepository = ChatRepository();
   late AnimationController _pulseController;
   StreamSubscription<CallModel?>? _callStatusSub;
 
@@ -51,6 +53,17 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
     await _callRepository.rejectCall(
       widget.call.callId,
       receiverId: widget.call.receiverId,
+      status: CallStatus.rejected,
+    );
+    await _chatRepository.saveCallEventMessage(
+      callerId: widget.call.callerId,
+      receiverId: widget.call.receiverId,
+      callType: widget.call.type.toShortString(),
+      callStatus: 'rejected',
+      callId: widget.call.callId,
+      startedAt: widget.call.createdAt,
+      endedAt: DateTime.now(),
+      durationSeconds: 0,
     );
     if (mounted) Navigator.of(context).pop();
   }
@@ -248,3 +261,4 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
     );
   }
 }
+

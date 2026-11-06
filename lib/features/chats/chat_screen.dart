@@ -1043,8 +1043,176 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
+  // --- Instagram Style Call Event Tile ---
+  Widget _buildCallEventTile(MessageModel msg, bool isMe) {
+    final isVideo = msg.callType == 'video';
+    final isMissed = msg.callStatus == 'missed';
+    final isRejected = msg.callStatus == 'rejected';
+    final isUnanswered = isMissed || isRejected;
+
+    IconData iconData;
+    Color iconColor;
+    String title;
+
+    if (isVideo) {
+      if (isMissed) {
+        iconData = Icons.missed_video_call_rounded;
+        iconColor = AppColors.callRed;
+        title = isMe ? 'Cancelled video call' : 'Missed video call';
+      } else if (isRejected) {
+        iconData = Icons.videocam_off_rounded;
+        iconColor = AppColors.callRed;
+        title = isMe ? 'Declined video call' : 'Video call declined';
+      } else {
+        iconData = Icons.videocam_rounded;
+        iconColor = isMe ? AppColors.igBlue : AppColors.callGreen;
+        title = isMe ? 'Outgoing video call' : 'Incoming video call';
+      }
+    } else {
+      // Voice call
+      if (isMissed) {
+        iconData = Icons.phone_missed_rounded;
+        iconColor = AppColors.callRed;
+        title = isMe ? 'Cancelled audio call' : 'Missed audio call';
+      } else if (isRejected) {
+        iconData = Icons.phone_disabled_rounded;
+        iconColor = AppColors.callRed;
+        title = isMe ? 'Declined audio call' : 'Audio call declined';
+      } else {
+        iconData = isMe ? Icons.call_made_rounded : Icons.call_received_rounded;
+        iconColor = isMe ? AppColors.igBlue : AppColors.callGreen;
+        title = isMe ? 'Outgoing voice call' : 'Incoming voice call';
+      }
+    }
+
+    String durationText = '';
+    if (msg.durationSeconds != null && msg.durationSeconds! > 0) {
+      final mins = msg.durationSeconds! ~/ 60;
+      final secs = msg.durationSeconds! % 60;
+      if (mins > 0) {
+        durationText = '${mins}m ${secs}s';
+      } else {
+        durationText = '${secs}s';
+      }
+    }
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.76,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isUnanswered ? AppColors.callRed.withValues(alpha: 0.3) : Colors.white10,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _initiateCall(isVideo ? CallType.video : CallType.voice);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(iconData, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: isUnanswered && !isMe ? const Color(0xFFFF6B6B) : Colors.white,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (durationText.isNotEmpty) ...[
+                              Text(
+                                durationText,
+                                style: const TextStyle(
+                                  color: AppColors.igMutedGrey,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const Text(
+                                ' • ',
+                                style: TextStyle(color: AppColors.igMutedGrey, fontSize: 12),
+                              ),
+                            ] else if (isUnanswered) ...[
+                              const Text(
+                                'Tap to call back • ',
+                                style: TextStyle(
+                                  color: AppColors.igBlue,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                            Text(
+                              DateFormatter.formatMessageTime(msg.timestamp),
+                              style: const TextStyle(
+                                color: AppColors.igMutedGrey,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    isVideo ? Icons.videocam_outlined : Icons.call_outlined,
+                    color: AppColors.igMutedGrey,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- Instagram Style Message Bubble ---
   Widget _buildMessageBubble(MessageModel msg, bool isMe, String currentUserId) {
+    if (msg.type == MessageType.call) {
+      return _buildCallEventTile(msg, isMe);
+    }
     // Tally reactions
     final Map<String, int> reactionCounts = {};
     msg.reactions.forEach((uid, emoji) {

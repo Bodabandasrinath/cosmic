@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants/app_constants.dart';
 import '../models/call_model.dart';
 import '../models/user_model.dart';
+import 'chat_repository.dart';
 
 class CallRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -84,7 +85,9 @@ class CallRepository {
     CallStatus status = CallStatus.rejected,
   }) async {
     try {
-      await _firestore.collection(AppConstants.callsCollection).doc(callId).update({
+      final callRef = _firestore.collection(AppConstants.callsCollection).doc(callId);
+      final callDoc = await callRef.get();
+      await callRef.update({
         'status': status.toShortString(),
         'endedAt': FieldValue.serverTimestamp(),
       });
@@ -93,6 +96,23 @@ class CallRepository {
         currentUserId: receiverId,
         status: status,
       );
+
+      if (callDoc.exists) {
+        final data = callDoc.data()!;
+        final callerId = data['callerId'] ?? '';
+        final type = data['type'] ?? 'voice';
+        final statusStr = status == CallStatus.busy ? 'missed' : 'rejected';
+        ChatRepository().saveCallEventMessage(
+          callerId: callerId,
+          receiverId: receiverId,
+          callType: type,
+          callStatus: statusStr,
+          callId: callId,
+          startedAt: (data['createdAt'] as Timestamp?)?.toDate(),
+          endedAt: DateTime.now(),
+          durationSeconds: 0,
+        );
+      }
     } catch (_) {}
   }
 
@@ -190,4 +210,5 @@ class CallRepository {
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
 }
+
 

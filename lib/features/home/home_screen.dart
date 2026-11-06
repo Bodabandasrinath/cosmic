@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/call_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/call_repository.dart';
+import '../../repositories/chat_repository.dart';
 import '../../services/presence_service.dart';
 import '../chats/chats_tab.dart';
 import '../calls/calls_tab.dart';
@@ -58,6 +59,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               call.callId,
               receiverId: uid,
               status: CallStatus.busy,
+            );
+            ChatRepository().saveCallEventMessage(
+              callerId: call.callerId,
+              receiverId: uid,
+              callType: call.type.toShortString(),
+              callStatus: 'missed',
+              callId: call.callId,
+              startedAt: call.createdAt,
+              endedAt: DateTime.now(),
+              durationSeconds: 0,
             );
             return;
           }
@@ -178,4 +189,5 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 }
+
 

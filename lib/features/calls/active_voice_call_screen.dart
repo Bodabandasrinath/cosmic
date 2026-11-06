@@ -181,6 +181,8 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
   Widget build(BuildContext context) {
     final displayName = widget.isCaller ? widget.call.receiverName : widget.call.callerName;
     final photoUrl = widget.isCaller ? widget.call.receiverPhoto : widget.call.callerPhoto;
+    final myName = widget.isCaller ? widget.call.callerName : widget.call.receiverName;
+    final myPhoto = widget.isCaller ? widget.call.callerPhoto : widget.call.receiverPhoto;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -221,7 +223,7 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
               ),
             ),
 
-            // Instagram Center Avatar with Breathing Glow
+            // Instagram Center Avatars (Both Participants) with Breathing Glow
             Column(
               children: [
                 AnimatedBuilder(
@@ -233,17 +235,41 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
                         shape: BoxShape.circle,
                         color: Colors.white.withValues(alpha: 0.06 * _haloController.value),
                       ),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: AppColors.instagramStoryGradient,
-                        ),
-                        child: AvatarWidget(
-                          name: displayName,
-                          photoUrl: photoUrl,
-                          radius: 68,
-                        ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Primary Avatar (Other Participant)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: AppColors.instagramStoryGradient,
+                            ),
+                            child: AvatarWidget(
+                              name: displayName,
+                              photoUrl: photoUrl,
+                              radius: 64,
+                            ),
+                          ),
+                          // Secondary Avatar (Current User Overlapping Badge)
+                          Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(2.5),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black,
+                              ),
+                              child: AvatarWidget(
+                                name: myName,
+                                photoUrl: myPhoto,
+                                radius: 24,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -256,6 +282,15 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Connected with $myName',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF8E8E8E),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -353,4 +388,3 @@ class _ActiveVoiceCallScreenState extends State<ActiveVoiceCallScreen> with Sing
     );
   }
 }
-

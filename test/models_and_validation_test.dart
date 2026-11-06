@@ -203,6 +203,20 @@ void main() {
       expect(call.callId, 'internal_session_98765');
       expect(call.status, CallStatus.calling);
 
+      // Verify Firebase signaling map serialization
+      final callMap = call.toMap();
+      expect(callMap['callId'], 'internal_session_98765');
+      expect(callMap['chatId'], 'user_a_user_b');
+      expect(callMap['callerId'], 'user_a');
+      expect(callMap['receiverId'], 'user_b');
+      expect(callMap['callType'], 'voice');
+      expect(callMap['startedAt'], isNotNull);
+
+      final reconstructedCall = CallModel.fromMap(callMap, documentId: 'internal_session_98765');
+      expect(reconstructedCall.callId, 'internal_session_98765');
+      expect(reconstructedCall.chatId, 'user_a_user_b');
+      expect(reconstructedCall.type, CallType.voice);
+
       // State transition to accepted
       final acceptedCall = call.copyWith(
         status: CallStatus.accepted,

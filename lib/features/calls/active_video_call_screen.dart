@@ -7,6 +7,7 @@ import '../../models/call_model.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/chat_repository.dart';
 import '../../services/webrtc_service.dart';
+import '../../widgets/avatar_widget.dart';
 
 class ActiveVideoCallScreen extends StatefulWidget {
   final CallModel call;
@@ -154,6 +155,9 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
   @override
   Widget build(BuildContext context) {
     final displayName = widget.isCaller ? widget.call.receiverName : widget.call.callerName;
+    final photoUrl = widget.isCaller ? widget.call.receiverPhoto : widget.call.callerPhoto;
+    final myName = widget.isCaller ? widget.call.callerName : widget.call.receiverName;
+    final myPhoto = widget.isCaller ? widget.call.callerPhoto : widget.call.receiverPhoto;
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -176,19 +180,33 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFF262626),
+                                gradient: AppColors.instagramStoryGradient,
                               ),
-                              child: const Icon(Icons.videocam_rounded, size: 56, color: Colors.white),
+                              child: AvatarWidget(
+                                name: displayName,
+                                photoUrl: photoUrl,
+                                radius: 52,
+                              ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 18),
+                            Text(
+                              displayName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                             Text(
                               _status == CallStatus.calling
-                                  ? 'Calling $displayName...'
+                                  ? 'Calling...'
                                   : (_status == CallStatus.ringing ? 'Ringing...' : 'Connecting video...'),
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                              style: const TextStyle(color: AppColors.igMutedGrey, fontSize: 14, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -229,8 +247,12 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
                           )
                         : Container(
                             color: const Color(0xFF262626),
-                            child: const Center(
-                              child: Icon(Icons.videocam_off, color: Colors.white54, size: 28),
+                            child: Center(
+                              child: AvatarWidget(
+                                name: myName,
+                                photoUrl: myPhoto,
+                                radius: 24,
+                              ),
                             ),
                           ),
                   ),
@@ -238,7 +260,7 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
               ),
             ),
 
-            // 3. Instagram Video Call Top Bar
+            // 3. Instagram Video Call Top Bar (Showing Both Participants)
             if (_showControls)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
@@ -279,14 +301,22 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white12),
                       ),
-                      child: Text(
-                        displayName,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AvatarWidget(name: displayName, photoUrl: photoUrl, radius: 12),
+                          const SizedBox(width: 6),
+                          Text(
+                            displayName,
+                            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -389,4 +419,3 @@ class _ActiveVideoCallScreenState extends State<ActiveVideoCallScreen> {
     );
   }
 }
-

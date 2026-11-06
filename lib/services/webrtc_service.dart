@@ -18,6 +18,10 @@ class WebRTCService {
   StreamSubscription<DocumentSnapshot>? _callSubscription;
   StreamSubscription<QuerySnapshot>? _candidatesSubscription;
 
+  // ICE Candidate queue to prevent premature candidate addition before setRemoteDescription
+  final List<RTCIceCandidate> _queuedCandidates = [];
+  bool _isRemoteDescriptionSet = false;
+
   bool _isAudioMuted = false;
   bool _isVideoMuted = false;
   bool _isSpeakerOn = false;
@@ -37,48 +41,75 @@ class WebRTCService {
     await remoteRenderer.initialize();
   }
 
-  /// 1. Create WebRTC Peer Connection with STUN servers
-  Future<void> _createPeerConnection() async {
+  /// 1. Create WebRTC Peer Connection with STUN and TURN servers
+  Future<void> _createPeerConnection(CallType type) async {
     final configuration = <String, dynamic>{
       'iceServers': AppConstants.iceServers,
       'sdpSemantics': 'unified-plan',
+      'bundlePolicy': 'max-bundle',
+      'rtcpMuxPolicy': 'require',
     };
 
     final offerSdpConstraints = <String, dynamic>{
       'mandatory': {
         'OfferToReceiveAudio': true,
-        'OfferToReceiveVideo': true,
+        'OfferToReceiveVideo': type == CallType.video,
       },
       'optional': [],
     };
 
     _peerConnection = await createPeerConnection(configuration, offerSdpConstraints);
 
+    // Monitor ICE Connection State
     _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
       if (kDebugMode) {
         print('WebRTC ICE Connection State: $state');
       }
-      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         onCallStatusChanged?.call(CallStatus.connected);
-      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
-                 state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-        // Attempt reconnection or notify
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
         onCallStatusChanged?.call(CallStatus.failed);
       }
     };
 
+    // Monitor Peer Connection State
+    _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
+      if (kDebugMode) {
+        print('WebRTC Peer Connection State: $state');
+      }
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        onCallStatusChanged?.call(CallStatus.connected);
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        onCallStatusChanged?.call(CallStatus.failed);
+      }
+    };
+
+    // Listen for Remote Tracks (Unified Plan)
     _peerConnection!.onTrack = (RTCTrackEvent event) {
+      if (_isDisposed) return;
       if (event.streams.isNotEmpty) {
         _remoteStream = event.streams[0];
         remoteRenderer.srcObject = _remoteStream;
       }
+    };
+
+    // Fallback for legacy onAddStream
+    _peerConnection!.onAddStream = (MediaStream stream) {
+      if (_isDisposed) return;
+      _remoteStream = stream;
+      remoteRenderer.srcObject = _remoteStream;
     };
   }
 
   /// 2. Open Local User Media Stream (Mic / Camera)
   Future<void> _openUserMedia(CallType type) async {
     final mediaConstraints = <String, dynamic>{
-      'audio': true,
+      'audio': {
+        'echoCancellation': true,
+        'noiseSuppression': true,
+        'autoGainControl': true,
+      },
       'video': type == CallType.video
           ? (kIsWeb
               ? {'facingMode': 'user'}
@@ -116,15 +147,28 @@ class WebRTCService {
     }
   }
 
+  /// Flush any ICE candidates received prior to setRemoteDescription
+  Future<void> _drainCandidateQueue() async {
+    if (_peerConnection == null || !_isRemoteDescriptionSet) return;
+    while (_queuedCandidates.isNotEmpty) {
+      final cand = _queuedCandidates.removeAt(0);
+      try {
+        await _peerConnection!.addCandidate(cand);
+      } catch (e) {
+        if (kDebugMode) print('Error draining candidate: $e');
+      }
+    }
+  }
+
   /// 3. Caller: Start Outgoing Direct Call
   Future<void> startCall({required CallModel call}) async {
     await initializeRenderers();
-    await _createPeerConnection();
+    await _createPeerConnection(call.type);
     await _openUserMedia(call.type);
 
     final callDocRef = _firestore.collection(AppConstants.callsCollection).doc(call.callId);
 
-    // Collect ICE Candidates from local peer and store to callerCandidates
+    // Send Local ICE Candidates to Firestore
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       if (candidate.candidate != null && !_isDisposed) {
         callDocRef.collection(AppConstants.callerCandidatesSubcollection).add(candidate.toMap());
@@ -139,6 +183,7 @@ class WebRTCService {
     await callDocRef.set({
       ...call.toMap(),
       'sdpOffer': offer.toMap(),
+      'offer': offer.toMap(),
       'status': CallStatus.calling.toShortString(),
     }, SetOptions(merge: true));
 
@@ -152,12 +197,17 @@ class WebRTCService {
 
       // Receiver answered
       if (status == CallStatus.accepted || status == CallStatus.connected) {
+        final answerMap = (data['sdpAnswer'] ?? data['answer']) as Map<String, dynamic>?;
         if (_peerConnection != null &&
             _peerConnection!.signalingState != RTCSignalingState.RTCSignalingStateStable &&
-            data['sdpAnswer'] != null) {
-          final answerMap = data['sdpAnswer'] as Map<String, dynamic>;
-          final answer = RTCSessionDescription(answerMap['sdp'], answerMap['type']);
+            answerMap != null) {
+          final answer = RTCSessionDescription(
+            answerMap['sdp'] as String? ?? '',
+            answerMap['type'] as String? ?? 'answer',
+          );
           await _peerConnection!.setRemoteDescription(answer);
+          _isRemoteDescriptionSet = true;
+          await _drainCandidateQueue();
         }
       } else if (status == CallStatus.rejected ||
                  status == CallStatus.busy ||
@@ -171,18 +221,26 @@ class WebRTCService {
     _candidatesSubscription = callDocRef
         .collection(AppConstants.receiverCandidatesSubcollection)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async {
       if (_peerConnection == null || _isDisposed) return;
       for (final change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
-          _peerConnection!.addCandidate(
-            RTCIceCandidate(
-              data['candidate'],
-              data['sdpMid'],
-              data['sdpMLineIndex'],
-            ),
+          final candidate = RTCIceCandidate(
+            data['candidate'],
+            data['sdpMid'],
+            data['sdpMLineIndex'],
           );
+
+          if (_isRemoteDescriptionSet) {
+            try {
+              await _peerConnection!.addCandidate(candidate);
+            } catch (e) {
+              if (kDebugMode) print('addCandidate error: $e');
+            }
+          } else {
+            _queuedCandidates.add(candidate);
+          }
         }
       }
     });
@@ -191,12 +249,12 @@ class WebRTCService {
   /// 4. Receiver: Accept Incoming Direct Call
   Future<void> acceptCall({required CallModel call}) async {
     await initializeRenderers();
-    await _createPeerConnection();
+    await _createPeerConnection(call.type);
     await _openUserMedia(call.type);
 
     final callDocRef = _firestore.collection(AppConstants.callsCollection).doc(call.callId);
 
-    // Send Receiver ICE candidates
+    // Send Receiver ICE candidates to Firestore
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       if (candidate.candidate != null && !_isDisposed) {
         callDocRef.collection(AppConstants.receiverCandidatesSubcollection).add(candidate.toMap());
@@ -204,16 +262,23 @@ class WebRTCService {
     };
 
     // Set Remote Description from Caller's Offer
-    if (call.sdpOffer != null) {
-      final offer = RTCSessionDescription(call.sdpOffer!['sdp'], call.sdpOffer!['type']);
-      await _peerConnection!.setRemoteDescription(offer);
-    } else {
+    Map<String, dynamic>? offerMap = call.sdpOffer;
+    if (offerMap == null) {
       final doc = await callDocRef.get();
-      final data = doc.data() as Map<String, dynamic>;
-      final offerMap = data['sdpOffer'] as Map<String, dynamic>;
-      await _peerConnection!.setRemoteDescription(
-        RTCSessionDescription(offerMap['sdp'], offerMap['type']),
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data() as Map<String, dynamic>;
+        offerMap = (data['sdpOffer'] ?? data['offer']) as Map<String, dynamic>?;
+      }
+    }
+
+    if (offerMap != null) {
+      final offer = RTCSessionDescription(
+        offerMap['sdp'] as String? ?? '',
+        offerMap['type'] as String? ?? 'offer',
       );
+      await _peerConnection!.setRemoteDescription(offer);
+      _isRemoteDescriptionSet = true;
+      await _drainCandidateQueue();
     }
 
     // Create SDP Answer
@@ -223,6 +288,7 @@ class WebRTCService {
     // Update Call document with Answer and status 'accepted'
     await callDocRef.update({
       'sdpAnswer': answer.toMap(),
+      'answer': answer.toMap(),
       'status': CallStatus.accepted.toShortString(),
       'acceptedAt': FieldValue.serverTimestamp(),
     });
@@ -233,18 +299,26 @@ class WebRTCService {
     _candidatesSubscription = callDocRef
         .collection(AppConstants.callerCandidatesSubcollection)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async {
       if (_peerConnection == null || _isDisposed) return;
       for (final change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
-          _peerConnection!.addCandidate(
-            RTCIceCandidate(
-              data['candidate'],
-              data['sdpMid'],
-              data['sdpMLineIndex'],
-            ),
+          final candidate = RTCIceCandidate(
+            data['candidate'],
+            data['sdpMid'],
+            data['sdpMLineIndex'],
           );
+
+          if (_isRemoteDescriptionSet) {
+            try {
+              await _peerConnection!.addCandidate(candidate);
+            } catch (e) {
+              if (kDebugMode) print('addCandidate error: $e');
+            }
+          } else {
+            _queuedCandidates.add(candidate);
+          }
         }
       }
     });
@@ -350,15 +424,25 @@ class WebRTCService {
   }
 
   void dispose() {
+    if (_isDisposed) return;
     _isDisposed = true;
     _callSubscription?.cancel();
     _candidatesSubscription?.cancel();
+    _queuedCandidates.clear();
 
-    _localStream?.getTracks().forEach((track) => track.stop());
+    _localStream?.getTracks().forEach((track) {
+      try {
+        track.stop();
+      } catch (_) {}
+    });
     _localStream?.dispose();
     _localStream = null;
 
-    _remoteStream?.getTracks().forEach((track) => track.stop());
+    _remoteStream?.getTracks().forEach((track) {
+      try {
+        track.stop();
+      } catch (_) {}
+    });
     _remoteStream?.dispose();
     _remoteStream = null;
 
@@ -372,4 +456,3 @@ class WebRTCService {
     remoteRenderer.dispose();
   }
 }
-

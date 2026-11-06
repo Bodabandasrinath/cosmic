@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   StreamSubscription<CallModel?>? _incomingCallSub;
   bool _isCallModalShowing = false;
+  String? _currentIncomingCallId;
 
   final List<Widget> _tabs = const [
     ChatsTab(),
@@ -53,8 +54,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Listen for incoming WebRTC calls in real-time
       _incomingCallSub = _callRepository.streamIncomingCalls(uid).listen((call) {
         if (call != null && mounted) {
+          // Prevent duplicate incoming screens for the same call session
+          if (_currentIncomingCallId == call.callId) {
+            return;
+          }
+
           if (_isCallModalShowing) {
-            // Already in a call modal - automatically send busy response
+            // Already in another active call with a different user - automatically send busy response
             _callRepository.rejectCall(
               call.callId,
               receiverId: uid,
@@ -74,6 +80,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
 
           _isCallModalShowing = true;
+          _currentIncomingCallId = call.callId;
+
           Navigator.of(context)
               .push(
                 MaterialPageRoute(
@@ -83,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               )
               .then((_) {
             _isCallModalShowing = false;
+            _currentIncomingCallId = null;
           });
         }
       });

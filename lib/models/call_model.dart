@@ -50,6 +50,7 @@ enum CallStatus {
 
 class CallModel {
   final String callId; // Internal technical session identifier only
+  final String? chatId;
   final String callerId;
   final String receiverId;
   final String callerName;
@@ -61,12 +62,14 @@ class CallModel {
   final Map<String, dynamic>? sdpOffer;
   final Map<String, dynamic>? sdpAnswer;
   final DateTime createdAt;
+  final DateTime? startedAt;
   final DateTime? acceptedAt;
   final DateTime? endedAt;
   final int durationSeconds;
 
   CallModel({
     required this.callId,
+    this.chatId,
     required this.callerId,
     required this.receiverId,
     required this.callerName,
@@ -78,14 +81,22 @@ class CallModel {
     this.sdpOffer,
     this.sdpAnswer,
     required this.createdAt,
+    this.startedAt,
     this.acceptedAt,
     this.endedAt,
     this.durationSeconds = 0,
   });
 
+  static String _generateChatId(String userA, String userB) {
+    final list = [userA, userB]..sort();
+    return '${list[0]}_${list[1]}';
+  }
+
   Map<String, dynamic> toMap() {
+    final computedChatId = chatId ?? _generateChatId(callerId, receiverId);
     return {
       'callId': callId,
+      'chatId': computedChatId,
       'callerId': callerId,
       'receiverId': receiverId,
       'participants': [callerId, receiverId],
@@ -94,10 +105,14 @@ class CallModel {
       'receiverName': receiverName,
       'receiverPhoto': receiverPhoto,
       'type': type.toShortString(),
+      'callType': type.toShortString(),
       'status': status.toShortString(),
+      'offer': sdpOffer,
       'sdpOffer': sdpOffer,
+      'answer': sdpAnswer,
       'sdpAnswer': sdpAnswer,
       'createdAt': Timestamp.fromDate(createdAt),
+      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : Timestamp.fromDate(createdAt),
       'acceptedAt': acceptedAt != null ? Timestamp.fromDate(acceptedAt!) : null,
       'endedAt': endedAt != null ? Timestamp.fromDate(endedAt!) : null,
       'durationSeconds': durationSeconds,
@@ -120,19 +135,25 @@ class CallModel {
       return null;
     }
 
+    final typeStr = map['callType'] ?? map['type'] ?? 'voice';
+    final offerMap = (map['sdpOffer'] ?? map['offer']) as Map<String, dynamic>?;
+    final answerMap = (map['sdpAnswer'] ?? map['answer']) as Map<String, dynamic>?;
+
     return CallModel(
       callId: map['callId'] ?? documentId ?? '',
+      chatId: map['chatId'],
       callerId: map['callerId'] ?? '',
       receiverId: map['receiverId'] ?? '',
       callerName: map['callerName'] ?? 'Cosmic User',
       callerPhoto: map['callerPhoto'] ?? '',
       receiverName: map['receiverName'] ?? 'Cosmic User',
       receiverPhoto: map['receiverPhoto'] ?? '',
-      type: CallType.fromString(map['type'] ?? 'voice'),
+      type: CallType.fromString(typeStr),
       status: CallStatus.fromString(map['status'] ?? 'calling'),
-      sdpOffer: map['sdpOffer'] as Map<String, dynamic>?,
-      sdpAnswer: map['sdpAnswer'] as Map<String, dynamic>?,
-      createdAt: parseDate(map['createdAt']),
+      sdpOffer: offerMap,
+      sdpAnswer: answerMap,
+      createdAt: parseDate(map['createdAt'] ?? map['startedAt']),
+      startedAt: parseNullableDate(map['startedAt']),
       acceptedAt: parseNullableDate(map['acceptedAt']),
       endedAt: parseNullableDate(map['endedAt']),
       durationSeconds: (map['durationSeconds'] as num?)?.toInt() ?? 0,
@@ -146,6 +167,7 @@ class CallModel {
 
   CallModel copyWith({
     String? callId,
+    String? chatId,
     String? callerId,
     String? receiverId,
     String? callerName,
@@ -157,12 +179,14 @@ class CallModel {
     Map<String, dynamic>? sdpOffer,
     Map<String, dynamic>? sdpAnswer,
     DateTime? createdAt,
+    DateTime? startedAt,
     DateTime? acceptedAt,
     DateTime? endedAt,
     int? durationSeconds,
   }) {
     return CallModel(
       callId: callId ?? this.callId,
+      chatId: chatId ?? this.chatId,
       callerId: callerId ?? this.callerId,
       receiverId: receiverId ?? this.receiverId,
       callerName: callerName ?? this.callerName,
@@ -174,11 +198,10 @@ class CallModel {
       sdpOffer: sdpOffer ?? this.sdpOffer,
       sdpAnswer: sdpAnswer ?? this.sdpAnswer,
       createdAt: createdAt ?? this.createdAt,
+      startedAt: startedAt ?? this.startedAt,
       acceptedAt: acceptedAt ?? this.acceptedAt,
       endedAt: endedAt ?? this.endedAt,
       durationSeconds: durationSeconds ?? this.durationSeconds,
     );
   }
 }
-
-

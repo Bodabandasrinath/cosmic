@@ -19,6 +19,18 @@ class ChatRepository {
     required String currentUserId,
     required String otherUserId,
   }) async {
+    // 1. Verify mutual friendship before starting or creating a conversation
+    final friendDoc = await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(currentUserId)
+        .collection('following')
+        .doc(otherUserId)
+        .get();
+
+    if (!friendDoc.exists) {
+      throw 'Only users with an accepted mutual follow relationship can start conversations.';
+    }
+
     final chatId = getChatId(currentUserId, otherUserId);
     final chatDoc = _firestore.collection(AppConstants.chatsCollection).doc(chatId);
 
@@ -76,6 +88,18 @@ class ChatRepository {
     String? replyToText,
     String? replyToSenderName,
   }) async {
+    // 1. Verify mutual friendship before sending messages
+    final friendDoc = await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(senderId)
+        .collection('following')
+        .doc(receiverId)
+        .get();
+
+    if (!friendDoc.exists) {
+      throw 'Only accepted mutual friends can send messages.';
+    }
+
     final messageId = _uuid.v4();
     final now = DateTime.now();
 

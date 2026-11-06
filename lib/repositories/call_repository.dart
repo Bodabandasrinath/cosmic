@@ -15,6 +15,18 @@ class CallRepository {
     required UserModel receiver,
     required CallType type,
   }) async {
+    // 1. Verify mutual friendship before initiating call
+    final friendDoc = await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(caller.uid)
+        .collection('following')
+        .doc(receiver.uid)
+        .get();
+
+    if (!friendDoc.exists) {
+      throw 'Only accepted mutual friends can make voice and video calls.';
+    }
+
     // Check if there is already an active session between caller and receiver
     try {
       final activeSnap = await _firestore

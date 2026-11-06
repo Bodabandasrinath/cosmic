@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/call_model.dart';
+import '../../models/follow_request_model.dart';
 import '../../models/user_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/call_repository.dart';
+import '../../repositories/friendship_repository.dart';
 import '../../repositories/user_repository.dart';
 import '../../widgets/avatar_widget.dart';
 import '../calls/active_voice_call_screen.dart';
@@ -21,6 +24,7 @@ class UserSearchScreen extends StatefulWidget {
 class _UserSearchScreenState extends State<UserSearchScreen> {
   final UserRepository _userRepository = UserRepository();
   final CallRepository _callRepository = CallRepository();
+  final FriendshipRepository _friendshipRepository = FriendshipRepository();
   final TextEditingController _searchController = TextEditingController();
 
   List<UserModel> _results = [];
@@ -220,57 +224,197 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                                   ],
                                 ),
                               ),
-                              // Message button (Instagram Blue)
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => ChatScreen(otherUser: user)),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.igBlue,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'Message',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Audio call
-                              IconButton(
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(6),
-                                icon: const Icon(Icons.call_outlined, color: Colors.white70, size: 20),
-                                onPressed: () => _startCall(user, CallType.voice),
-                              ),
-                              // Video call
-                              IconButton(
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(6),
-                                icon: const Icon(Icons.videocam_outlined, color: Colors.white70, size: 22),
-                                onPressed: () => _startCall(user, CallType.video),
-                              ),
-                              // Add to contacts
-                              IconButton(
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(6),
-                                icon: const Icon(Icons.person_add_outlined, color: Color(0xFF8E8E8E), size: 19),
-                                onPressed: () async {
-                                  await _userRepository.addContact(
-                                    currentUserId: currentUserId,
-                                    contactUser: user,
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Added ${user.displayName} to contacts')),
+                              // Instagram Relationship Action Area
+                              StreamBuilder<String>(
+                                stream: _friendshipRepository.streamRelationship(currentUserId, user.uid),
+                                builder: (context, relSnapshot) {
+                                  final rel = relSnapshot.data ?? 'none';
+                                  final currentUser = Provider.of<AuthRepository>(context, listen: false).currentUser;
+
+                                  if (rel == 'friends') {
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(builder: (_) => ChatScreen(otherUser: user)),
+                                            );
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.igBlue,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              'Message',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(6),
+                                          icon: const Icon(Icons.call_outlined, color: Colors.white70, size: 20),
+                                          onPressed: () => _startCall(user, CallType.voice),
+                                        ),
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(6),
+                                          icon: const Icon(Icons.videocam_outlined, color: Colors.white70, size: 22),
+                                          onPressed: () => _startCall(user, CallType.video),
+                                        ),
+                                      ],
+                                    );
+                                  } else if (rel == 'pending_sent') {
+                                    return GestureDetector(
+                                      onTap: () async {
+                                        HapticFeedback.lightImpact();
+                                        await _friendshipRepository.cancelFollowRequest(
+                                          senderId: currentUserId,
+                                          receiverId: user.uid,
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF262626),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.white24, width: 1),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.access_time_rounded, color: Colors.white70, size: 14),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Requested',
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  } else if (rel == 'pending_received') {
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () async {
+                                            HapticFeedback.mediumImpact();
+                                            final reqId = _friendshipRepository.getRequestId(user.uid, currentUserId);
+                                            final req = FollowRequestModel(
+                                              id: reqId,
+                                              senderId: user.uid,
+                                              receiverId: currentUserId,
+                                              status: FollowRequestStatus.pending,
+                                              senderUsername: user.username,
+                                              senderDisplayName: user.displayName,
+                                              senderPhotoUrl: user.profilePhoto,
+                                              receiverUsername: currentUser?.username ?? '',
+                                              receiverDisplayName: currentUser?.displayName ?? '',
+                                              receiverPhotoUrl: currentUser?.profilePhoto ?? '',
+                                              createdAt: DateTime.now(),
+                                            );
+                                            await _friendshipRepository.acceptFollowRequest(req);
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6.5),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.igBlue,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              'Confirm',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () async {
+                                            HapticFeedback.lightImpact();
+                                            final reqId = _friendshipRepository.getRequestId(user.uid, currentUserId);
+                                            final req = FollowRequestModel(
+                                              id: reqId,
+                                              senderId: user.uid,
+                                              receiverId: currentUserId,
+                                              status: FollowRequestStatus.pending,
+                                              senderUsername: user.username,
+                                              senderDisplayName: user.displayName,
+                                              senderPhotoUrl: user.profilePhoto,
+                                              receiverUsername: currentUser?.username ?? '',
+                                              receiverDisplayName: currentUser?.displayName ?? '',
+                                              receiverPhotoUrl: currentUser?.profilePhoto ?? '',
+                                              createdAt: DateTime.now(),
+                                            );
+                                            await _friendshipRepository.rejectFollowRequest(req);
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF262626),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              'Delete',
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  } else {
+                                    // 'none' or 'rejected'
+                                    return GestureDetector(
+                                      onTap: () async {
+                                        if (currentUser == null) return;
+                                        HapticFeedback.mediumImpact();
+                                        await _friendshipRepository.sendFollowRequest(
+                                          sender: currentUser,
+                                          receiver: user,
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.igBlue,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.person_add_rounded, color: Colors.white, size: 15),
+                                            SizedBox(width: 5),
+                                            Text(
+                                              'Follow',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     );
                                   }
                                 },

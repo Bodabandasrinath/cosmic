@@ -12,11 +12,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../models/call_model.dart';
+import '../../models/follow_request_model.dart';
 import '../../models/message_model.dart';
 import '../../models/user_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/chat_repository.dart';
+import '../../repositories/friendship_repository.dart';
 import '../../repositories/storage_repository.dart';
 import '../../repositories/user_repository.dart';
 import '../../services/presence_service.dart';
@@ -47,6 +49,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final PresenceService _presenceService = PresenceService();
   final CallRepository _callRepository = CallRepository();
   final UserRepository _userRepository = UserRepository();
+  final FriendshipRepository _friendshipRepository = FriendshipRepository();
   final AudioRecorder _audioRecorder = AudioRecorder();
 
   final TextEditingController _textController = TextEditingController();
@@ -347,6 +350,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final currentUser = authRepo.currentUser;
     if (currentUser == null) return;
 
+    // Verify mutual friendship before calling
+    final areFriends = await _friendshipRepository.areFriends(currentUser.uid, widget.otherUser.uid);
+    if (!areFriends) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only accepted mutual friends can make voice and video calls.'),
+            backgroundColor: AppColors.callRed,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       final call = await _callRepository.initiateDirectCall(
         caller: currentUser,
@@ -470,6 +487,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 onTap: () {
                   Navigator.pop(context);
                   setState(() => _isSearching = true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_remove_outlined, color: AppColors.callRed),
+                title: const Text('Remove Connection', style: TextStyle(color: AppColors.callRed)),
+                onTap: () async {
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(context);
+                  await _friendshipRepository.removeFriendship(
+                    currentUserId: currentUserId,
+                    targetUserId: widget.otherUser.uid,
+                  );
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Removed connection with ${widget.otherUser.displayName}')),
+                    );
+                  }
                 },
               ),
               ListTile(
@@ -649,94 +683,333 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final currentUserId = Provider.of<AuthRepository>(context).currentUid!;
 
-    return Scaffold(
-      backgroundColor: AppColors.igDarkBackground,
-      appBar: _isSearching ? _buildSearchAppBar() : _buildInstagramAppBar(),
-      body: Column(
-        children: [
-          // Upload Progress Bar
-          if (_uploadProgress != null)
-            LinearProgressIndicator(
-              value: _uploadProgress,
-              backgroundColor: AppColors.igDarkSurface,
-              valueColor: const AlwaysStoppedAnimation(AppColors.igBlue),
-            ),
+    return StreamBuilder<String>(
+      stream: _friendshipRepository.streamRelationship(currentUserId, widget.otherUser.uid),
+      builder: (context, relSnapshot) {
+        final rel = relSnapshot.data ?? 'none';
+        final isFriend = rel == 'friends';
 
-          // Messages List Stream
-          Expanded(
-            child: StreamBuilder<List<MessageModel>>(
-              stream: _chatRepository.streamMessages(_chatId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
-                }
+        return Scaffold(
+          backgroundColor: AppColors.igDarkBackground,
+          appBar: _isSearching ? _buildSearchAppBar() : _buildInstagramAppBar(isFriend),
+          body: Column(
+            children: [
+              // Upload Progress Bar
+              if (_uploadProgress != null)
+                LinearProgressIndicator(
+                  value: _uploadProgress,
+                  backgroundColor: AppColors.igDarkSurface,
+                  valueColor: const AlwaysStoppedAnimation(AppColors.igBlue),
+                ),
 
-                final allMessages = snapshot.data ?? [];
-                final messages = _isSearching && _searchController.text.trim().isNotEmpty
-                    ? _chatRepository.filterMessages(allMessages, _searchController.text)
-                    : allMessages;
+              // Messages List Stream or Locked Private Placeholder
+              Expanded(
+                child: !isFriend
+                    ? _buildPrivateConversationPlaceholder(rel)
+                    : StreamBuilder<List<MessageModel>>(
+                        stream: _chatRepository.streamMessages(_chatId),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator(color: AppColors.igBlue));
+                          }
 
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: AppColors.instagramStoryGradient,
-                          ),
-                          child: AvatarWidget(
-                            name: widget.otherUser.displayName,
-                            photoUrl: widget.otherUser.profilePhoto,
-                            radius: 42,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          widget.otherUser.displayName,
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '@${widget.otherUser.username}',
-                          style: const TextStyle(color: AppColors.igMutedGrey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isSearching
-                              ? 'No messages found for "${_searchController.text.trim()}"'
-                              : 'Instagram Direct chat with ${widget.otherUser.displayName}',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                          final allMessages = snapshot.data ?? [];
+                          final messages = _isSearching && _searchController.text.trim().isNotEmpty
+                              ? _chatRepository.filterMessages(allMessages, _searchController.text)
+                              : allMessages;
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true, // reverse so latest is at bottom
-                  itemCount: messages.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMe = msg.senderId == currentUserId;
-                    return _buildMessageBubble(msg, isMe, currentUserId);
-                  },
-                );
-              },
-            ),
+                          if (messages.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: AppColors.instagramStoryGradient,
+                                    ),
+                                    child: AvatarWidget(
+                                      name: widget.otherUser.displayName,
+                                      photoUrl: widget.otherUser.profilePhoto,
+                                      radius: 42,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    widget.otherUser.displayName,
+                                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    '@${widget.otherUser.username}',
+                                    style: const TextStyle(color: AppColors.igMutedGrey, fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _isSearching
+                                        ? 'No messages found for "${_searchController.text.trim()}"'
+                                        : 'Instagram Direct chat with ${widget.otherUser.displayName}',
+                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            controller: _scrollController,
+                            reverse: true, // reverse so latest is at bottom
+                            itemCount: messages.length,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            itemBuilder: (context, index) {
+                              final msg = messages[index];
+                              final isMe = msg.senderId == currentUserId;
+                              return _buildMessageBubble(msg, isMe, currentUserId);
+                            },
+                          );
+                        },
+                      ),
+              ),
+
+              // Reply Banner
+              if (_replyingTo != null && isFriend) _buildReplyPreview(),
+
+              // Instagram Capsule Composer or Relationship Action Bar
+              if (isFriend)
+                _buildInstagramComposer()
+              else
+                _buildRelationshipActionBar(rel, currentUserId),
+            ],
           ),
+        );
+      },
+    );
+  }
 
-          // Reply Banner
-          if (_replyingTo != null) _buildReplyPreview(),
+  Widget _buildPrivateConversationPlaceholder(String rel) {
+    String title = 'Private Conversation';
+    String message = 'Only users with an accepted mutual follow relationship can exchange messages and calls.';
+    IconData iconData = Icons.lock_outline_rounded;
+    Color iconColor = const Color(0xFF8E8E8E);
 
-          // Instagram Capsule Composer Input
-          _buildInstagramComposer(),
-        ],
+    if (rel == 'pending_sent') {
+      title = 'Follow Request Pending';
+      message = 'Your follow request to ${widget.otherUser.displayName} is awaiting approval. Messaging and calling will unlock once accepted.';
+      iconData = Icons.access_time_rounded;
+      iconColor = AppColors.callAmber;
+    } else if (rel == 'pending_received') {
+      title = 'Follow Request Received';
+      message = '${widget.otherUser.displayName} sent you a follow request. Confirm the request below to unlock direct messages and calls.';
+      iconData = Icons.person_add_rounded;
+      iconColor = AppColors.igBlue;
+    } else if (rel == 'rejected') {
+      title = 'Messaging Disabled';
+      message = 'Follow request was declined. You cannot send private messages or make calls with this user.';
+      iconData = Icons.block_rounded;
+      iconColor = AppColors.callRed;
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                shape: BoxShape.circle,
+                border: Border.all(color: iconColor.withValues(alpha: 0.3), width: 1.5),
+              ),
+              child: Icon(iconData, size: 38, color: iconColor),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF8E8E8E), fontSize: 13.5, height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildRelationshipActionBar(String rel, String currentUserId) {
+    final currentUser = Provider.of<AuthRepository>(context, listen: false).currentUser;
+
+    if (rel == 'pending_sent') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          border: Border(top: BorderSide(color: Colors.white12)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              const Icon(Icons.access_time_rounded, color: AppColors.callAmber, size: 20),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Follow request pending',
+                  style: TextStyle(color: Colors.white70, fontSize: 13.5, fontWeight: FontWeight.w500),
+                ),
+              ),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+                onPressed: () async {
+                  HapticFeedback.lightImpact();
+                  await _friendshipRepository.cancelFollowRequest(
+                    senderId: currentUserId,
+                    receiverId: widget.otherUser.uid,
+                  );
+                },
+                child: const Text('Cancel Request', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (rel == 'pending_received') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          border: Border(top: BorderSide(color: Colors.white12)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${widget.otherUser.displayName} wants to connect with you.',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.igBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: () async {
+                  HapticFeedback.mediumImpact();
+                  final reqId = _friendshipRepository.getRequestId(widget.otherUser.uid, currentUserId);
+                  final req = FollowRequestModel(
+                    id: reqId,
+                    senderId: widget.otherUser.uid,
+                    receiverId: currentUserId,
+                    status: FollowRequestStatus.pending,
+                    senderUsername: widget.otherUser.username,
+                    senderDisplayName: widget.otherUser.displayName,
+                    senderPhotoUrl: widget.otherUser.profilePhoto,
+                    receiverUsername: currentUser?.username ?? '',
+                    receiverDisplayName: currentUser?.displayName ?? '',
+                    receiverPhotoUrl: currentUser?.profilePhoto ?? '',
+                    createdAt: DateTime.now(),
+                  );
+                  await _friendshipRepository.acceptFollowRequest(req);
+                },
+                child: const Text('Confirm', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.callRed,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                onPressed: () async {
+                  HapticFeedback.lightImpact();
+                  final reqId = _friendshipRepository.getRequestId(widget.otherUser.uid, currentUserId);
+                  final req = FollowRequestModel(
+                    id: reqId,
+                    senderId: widget.otherUser.uid,
+                    receiverId: currentUserId,
+                    status: FollowRequestStatus.pending,
+                    senderUsername: widget.otherUser.username,
+                    senderDisplayName: widget.otherUser.displayName,
+                    senderPhotoUrl: widget.otherUser.profilePhoto,
+                    receiverUsername: currentUser?.username ?? '',
+                    receiverDisplayName: currentUser?.displayName ?? '',
+                    receiverPhotoUrl: currentUser?.profilePhoto ?? '',
+                    createdAt: DateTime.now(),
+                  );
+                  await _friendshipRepository.rejectFollowRequest(req);
+                },
+                child: const Text('Delete', style: TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // 'none' or 'rejected'
+      final isRejected = rel == 'rejected';
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          border: Border(top: BorderSide(color: Colors.white12)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Icon(
+                isRejected ? Icons.block_rounded : Icons.lock_outline_rounded,
+                color: isRejected ? AppColors.callRed : const Color(0xFF8E8E8E),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isRejected
+                      ? 'Request was declined. Send a new request to connect.'
+                      : 'Follow ${widget.otherUser.displayName} to send messages and make calls.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.igBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                icon: const Icon(Icons.person_add_rounded, size: 16),
+                label: const Text('Follow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                onPressed: () async {
+                  if (currentUser == null) return;
+                  HapticFeedback.mediumImpact();
+                  await _friendshipRepository.sendFollowRequest(
+                    sender: currentUser,
+                    receiver: widget.otherUser,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   PreferredSizeWidget _buildSearchAppBar() {
@@ -774,7 +1047,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  PreferredSizeWidget _buildInstagramAppBar() {
+  PreferredSizeWidget _buildInstagramAppBar(bool isFriend) {
     return AppBar(
       backgroundColor: Colors.black,
       elevation: 0,
@@ -853,13 +1126,39 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       actions: [
         // Voice Call 📞
         IconButton(
-          icon: const Icon(Icons.call_outlined, color: Colors.white, size: 22),
-          onPressed: () => _initiateCall(CallType.voice),
+          icon: Icon(
+            Icons.call_outlined,
+            color: isFriend ? Colors.white : Colors.white38,
+            size: 22,
+          ),
+          onPressed: isFriend
+              ? () => _initiateCall(CallType.voice)
+              : () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Only accepted mutual friends can make voice calls.'),
+                      backgroundColor: AppColors.callRed,
+                    ),
+                  );
+                },
         ),
         // Video Call 🎥
         IconButton(
-          icon: const Icon(Icons.videocam_outlined, color: Colors.white, size: 26),
-          onPressed: () => _initiateCall(CallType.video),
+          icon: Icon(
+            Icons.videocam_outlined,
+            color: isFriend ? Colors.white : Colors.white38,
+            size: 26,
+          ),
+          onPressed: isFriend
+              ? () => _initiateCall(CallType.video)
+              : () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Only accepted mutual friends can make video calls.'),
+                      backgroundColor: AppColors.callRed,
+                    ),
+                  );
+                },
         ),
         // Info Profile Sheet
         IconButton(

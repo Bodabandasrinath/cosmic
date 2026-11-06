@@ -5,6 +5,7 @@ import 'package:cosmic/models/user_model.dart';
 import 'package:cosmic/models/message_model.dart';
 import 'package:cosmic/models/call_model.dart';
 import 'package:cosmic/models/chat_model.dart';
+import 'package:cosmic/models/follow_request_model.dart';
 
 void main() {
   group('Authentication & User Validation Tests', () {
@@ -225,6 +226,49 @@ void main() {
       expect(DateFormatter.formatCallDuration(65), '01:05');
       expect(DateFormatter.formatCallDuration(360), '06:00');
       expect(DateFormatter.formatCallDuration(3665), '61:05');
+    });
+  });
+
+  group('Follow & Mutual Friendship Model Tests', () {
+    test('FollowRequestModel serializes, deserializes and supports transitions', () {
+      final now = DateTime.now();
+      final request = FollowRequestModel(
+        id: 'userA_userB',
+        senderId: 'userA',
+        receiverId: 'userB',
+        status: FollowRequestStatus.pending,
+        senderUsername: 'alice',
+        senderDisplayName: 'Alice Star',
+        receiverUsername: 'bob',
+        receiverDisplayName: 'Bob Cosmos',
+        createdAt: now,
+      );
+
+      expect(request.status, FollowRequestStatus.pending);
+      expect(request.id, 'userA_userB');
+
+      final map = request.toMap();
+      expect(map['status'], 'pending');
+      expect(map['senderId'], 'userA');
+      expect(map['receiverId'], 'userB');
+
+      final reconstructed = FollowRequestModel.fromMap(map, documentId: 'userA_userB');
+      expect(reconstructed.status, FollowRequestStatus.pending);
+      expect(reconstructed.senderUsername, 'alice');
+
+      // Transition to accepted
+      final accepted = reconstructed.copyWith(
+        status: FollowRequestStatus.accepted,
+        updatedAt: now.add(const Duration(minutes: 5)),
+      );
+      expect(accepted.status, FollowRequestStatus.accepted);
+      expect(accepted.updatedAt, isNotNull);
+
+      // Transition to rejected
+      final rejected = reconstructed.copyWith(
+        status: FollowRequestStatus.rejected,
+      );
+      expect(rejected.status, FollowRequestStatus.rejected);
     });
   });
 }

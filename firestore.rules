@@ -11,10 +11,25 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Mutual friendship check: both users follow each other (accepted connection)
+    function areMutualFriends(uid1, uid2) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/users/$(uid1)/following/$(uid2)) &&
+        exists(/databases/$(database)/documents/users/$(uid2)/following/$(uid1))
+      );
+    }
+
     function isChatParticipant(chatId) {
       return isAuthenticated() && (
         exists(/databases/$(database)/documents/chats/$(chatId)) &&
-        (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants)
+        (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) &&
+        (
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants.size() < 2 ||
+          areMutualFriends(
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants[0],
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants[1]
+          )
+        )
       );
     }
 
@@ -39,7 +54,20 @@ service cloud.firestore {
       
       // User Contacts subcollection
       match /contacts/{contactId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == contactId);
+      }
+
+      // Following subcollection: who userId follows
+      match /following/{friendId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == friendId);
+      }
+
+      // Followers subcollection: who follows userId
+      match /followers/{friendId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == friendId);
       }
       
       // Blocked users subcollection
@@ -53,6 +81,25 @@ service cloud.firestore {
       }
     }
 
+    // Follow / Friend Requests
+    match /follow_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && 
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (
+        resource.data.receiverId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+    }
+
     // Reports collection
     match /reports/{reportId} {
       allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid;
@@ -61,89 +108,86 @@ service cloud.firestore {
 
     // Chats and Conversations
     match /chats/{chatId} {
-      // Participant check: user must be in participants list
-      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants);
-      allow create: if isAuthenticated() && (request.auth.uid in request.resource.data.participants);
+      // Must be authenticated and a participant in the chat
+      // AND participants must have an active mutual friendship
+      allow read: if isAuthenticated() && 
+        (request.auth.uid in resource.data.participants) &&
+        (resource.data.participants.size() < 2 || areMutualFriends(resource.data.participants[0], resource.data.participants[1]));
+
+      allow create: if isAuthenticated() && 
+        (request.auth.uid in request.resource.data.participants) &&
+        (request.resource.data.participants.size() < 2 || areMutualFriends(request.resource.data.participants[0], request.resource.data.participants[1]));
+
       allow update: if isAuthenticated() && (
         (request.auth.uid in resource.data.participants) ||
         (request.auth.uid in request.resource.data.participants)
+      ) && (
+        resource.data.participants.size() < 2 || areMutualFriends(resource.data.participants[0], resource.data.participants[1])
       );
+
       allow delete: if false;
 
       // Messages inside a chat
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
-          isChatParticipant(chatId) ||
-          resource.data.senderId == request.auth.uid || 
-          resource.data.receiverId == request.auth.uid
+          isChatParticipant(chatId) || (
+            (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid) &&
+            areMutualFriends(resource.data.senderId, resource.data.receiverId)
+          )
         );
         allow create: if isAuthenticated() && (
-          isChatParticipant(chatId) ||
-          request.resource.data.senderId == request.auth.uid ||
-          request.resource.data.receiverId == request.auth.uid
+          isChatParticipant(chatId) || (
+            (request.resource.data.senderId == request.auth.uid || request.resource.data.receiverId == request.auth.uid) &&
+            areMutualFriends(request.resource.data.senderId, request.resource.data.receiverId)
+          )
         );
         allow update: if isAuthenticated() && (
-          isChatParticipant(chatId) ||
-          resource.data.senderId == request.auth.uid || 
-          resource.data.receiverId == request.auth.uid // For read/delivery receipt update & reactions
+          isChatParticipant(chatId) || (
+            (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid) &&
+            areMutualFriends(resource.data.senderId, resource.data.receiverId)
+          )
         );
-        allow delete: if isAuthenticated() && (
-          resource.data.senderId == request.auth.uid ||
-          isChatParticipant(chatId)
-        );
+        allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
       }
 
       // Typing status inside chat
       match /typing/{userId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+        allow read: if isAuthenticated() && isChatParticipant(chatId);
+        allow write: if isAuthenticated() && request.auth.uid == userId && isChatParticipant(chatId);
       }
     }
 
     // WebRTC Direct Calling Signaling
     match /calls/{callId} {
-      // Direct call: caller or receiver or participant only
+      allow create: if isAuthenticated() && (
+        request.resource.data.callerId == request.auth.uid
+      ) && areMutualFriends(request.resource.data.callerId, request.resource.data.receiverId);
+
       allow read: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid ||
-        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
-      );
-      
-      allow create: if isAuthenticated() && (
-        request.resource.data.callerId == request.auth.uid ||
-        (('participants' in request.resource.data) && (request.auth.uid in request.resource.data.participants))
-      );
-      
+        resource.data.receiverId == request.auth.uid
+      ) && areMutualFriends(resource.data.callerId, resource.data.receiverId);
+
       allow update: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid ||
-        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
-      );
-      
+        resource.data.receiverId == request.auth.uid
+      ) && areMutualFriends(resource.data.callerId, resource.data.receiverId);
+
       allow delete: if isAuthenticated() && (
         resource.data.callerId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid ||
-        (('participants' in resource.data) && (request.auth.uid in resource.data.participants))
+        resource.data.receiverId == request.auth.uid
       );
 
       // Caller ICE Candidates
       match /callerCandidates/{candidateId} {
-        allow read: if isCallParticipant(callId);
-        allow create: if isAuthenticated() && (
-          getCallDocData(callId).callerId == request.auth.uid ||
-          (('participants' in getCallDocData(callId)) && (request.auth.uid in getCallDocData(callId).participants))
-        );
-        allow update, delete: if isCallParticipant(callId);
+        allow read, write: if isCallParticipant(callId) && 
+          areMutualFriends(getCallDocData(callId).callerId, getCallDocData(callId).receiverId);
       }
 
       // Receiver ICE Candidates
       match /receiverCandidates/{candidateId} {
-        allow read: if isCallParticipant(callId);
-        allow create: if isAuthenticated() && (
-          getCallDocData(callId).receiverId == request.auth.uid ||
-          (('participants' in getCallDocData(callId)) && (request.auth.uid in getCallDocData(callId).participants))
-        );
-        allow update, delete: if isCallParticipant(callId);
+        allow read, write: if isCallParticipant(callId) && 
+          areMutualFriends(getCallDocData(callId).callerId, getCallDocData(callId).receiverId);
       }
     }
 
